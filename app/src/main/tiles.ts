@@ -61,17 +61,19 @@ export const ICONS_FOLDER = 'icons'
 /**
  * The file the window may have for a path it asks, or null: only what the converters write, nothing
  * else on the disk. base: the folder of the build. path: as in "/azeroth/blocks/31/49.dxt". A
- * ground is a continent by its name or a dungeon by "i" and its number; the rest is the four lists
- * and the pictures of the rooms (interiors.ts).
+ * ground is a continent by its name or a dungeon by "i" and its number, with its shaded relief
+ * under "shade/"; the rest is the four lists and the pictures of the rooms (interiors.ts).
  */
 export function servedFile(base: string, path: string): string | null {
   const icon = /^\/icons\/([a-z0-9-]{1,40})\.png$/.exec(path)
   if (icon) return joinPath(base, ICONS_FOLDER, `${icon[1]}.png`)
-  const m = /^\/(?:(maps|places|travel|interiors)\.json|rooms\/(\d{1,9})\.dxt|([a-z]+|i\d{1,5})\/(?:blocks\/(\d{1,2})\/(\d{1,2})\.dxt|(\d)\/(\d{1,3})\/(\d{1,3})\.png))$/.exec(path)
+  const m = /^\/(?:(maps|places|travel|interiors)\.json|rooms\/(\d{1,9})\.dxt|([a-z]+|i\d{1,5})\/(?:blocks\/(\d{1,2})\/(\d{1,2})\.dxt|(shade\/)?(\d)\/(\d{1,3})\/(\d{1,3})\.png))$/.exec(path)
   if (!m) return null
   if (m[1]) return joinPath(base, `${m[1]}.json`)
   if (m[2]) return joinPath(base, 'rooms', `${m[2]}.dxt`)
-  return m[4] !== undefined ? blockFile(joinPath(base, m[3]!), Number(m[4]), Number(m[5])) : tileFile(joinPath(base, m[3]!), Number(m[6]), Number(m[7]), Number(m[8]))
+  if (m[4] !== undefined) return blockFile(joinPath(base, m[3]!), Number(m[4]), Number(m[5]))
+  // The shaded relief (heights.ts): same tiles, its own folder.
+  return tileFile(joinPath(base, m[3]!, m[6] ? 'shade' : ''), Number(m[7]), Number(m[8]), Number(m[9]))
 }
 
 /** What a finished folder holds, or null when the continent is not converted, or only in part, or in an older layout. */

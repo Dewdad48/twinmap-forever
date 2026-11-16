@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { blockHeights, heightAt, packHeights, SIDE, STEP, unpackHeights } from './heights'
+import { blockHeights, FLAT, heightAt, packHeights, shadeOfBlock, SHADE_PIXELS, SIDE, STEP, unpackHeights } from './heights'
 import { BLOCK_YARDS, terrainFiles } from './world'
 
 const chunk = (tag: string, data: Buffer): Buffer => {
@@ -54,4 +54,14 @@ test('the terrain file of a block is the first of its eight in the world file', 
   maid.writeUInt32LE(778027, (48 * 64 + 32) * 32)
   maid.writeUInt32LE(204493, (48 * 64 + 32) * 32 + 28)
   expect([...terrainFiles(chunk('DIAM', maid))]).toEqual([[48 * 64 + 32, 778027]])
+})
+
+test('the light comes from the north-west: ground rising to the east or the south faces it', () => {
+  const plane = (east: number, south: number): Float32Array => Float32Array.from({ length: SIDE * SIDE }, (_, i) => 100 + (i % SIDE) * east + Math.floor(i / SIDE) * south)
+  const middle = (h: Float32Array): number => shadeOfBlock((c, r) => (c === 32 && r === 48 ? h : null), 32, 48, 1)[128 * SHADE_PIXELS + 128]!
+  expect(middle(plane(0, 0))).toBe(FLAT)
+  expect(middle(plane(1, 0))).toBeGreaterThan(FLAT)
+  expect(middle(plane(-1, 0))).toBeLessThan(FLAT)
+  expect(middle(plane(0, 1))).toBeGreaterThan(FLAT)
+  expect(middle(plane(0, -1))).toBeLessThan(FLAT)
 })

@@ -59,6 +59,49 @@ export function unpackHeights(b: Buffer): Float32Array {
   return out
 }
 
+/** Pixels a side of a block's shade: the tile of zoom 6. */
+export const SHADE_PIXELS = 256
+/** The grey of flat ground in a shade: soft light over it leaves the map as it is. */
+export const FLAT = 128
+
+/**
+ * The shade of a block as the light from the north-west, 45 degrees up, falls on its ground: one
+ * grey a pixel, SHADE_PIXELS x SHADE_PIXELS, FLAT where the ground is level, lighter where it faces
+ * the light and darker where it turns from it. strength: how far from FLAT a slope goes. heights:
+ * the heights of a block by its column and row, so the edges look across into the next one.
+ */
+export function shadeOfBlock(heights: (column: number, row: number) => Float32Array | null, column: number, row: number, strength: number): Uint8Array {
+  const out = new Uint8Array(SHADE_PIXELS * SHADE_PIXELS).fill(FLAT)
+  const own = heights(column, row)
+  if (!own) return out
+  // A height of the grid by row and column, these counted from this block's corner; past its edge, the next block's.
+  const at = (r: number, c: number): number => {
+    const dr = r < 0 ? -1 : r >= SIDE ? 1 : 0, dc = c < 0 ? -1 : c >= SIDE ? 1 : 0
+    const h = dr || dc ? heights(column + dc, row + dr) : own
+    const v = h?.[(r - dr * (SIDE - 1)) * SIDE + (c - dc * (SIDE - 1))]
+    return v === undefined || Number.isNaN(v) ? own[Math.min(SIDE - 1, Math.max(0, r)) * SIDE + Math.min(SIDE - 1, Math.max(0, c))]! : v
+  }
+  // The light on each height of the grid, from the slope across it; the pixels between, blended.
+  const flat = Math.SQRT1_2, light = new Float32Array(SIDE * SIDE)
+  for (let r = 0; r < SIDE; r++) {
+    for (let c = 0; c < SIDE; c++) {
+      const east = (at(r, c + 1) - at(r, c - 1)) / (2 * STEP), south = (at(r + 1, c) - at(r - 1, c)) / (2 * STEP)
+      // The light comes from the north-west: from -east and -south, half up.
+      light[r * SIDE + c] = (0.5 * east + 0.5 * south + flat) / Math.sqrt(east * east + south * south + 1) - flat
+    }
+  }
+  const scale = (SIDE - 1) / SHADE_PIXELS
+  for (let py = 0; py < SHADE_PIXELS; py++) {
+    const fr = (py + 0.5) * scale, r = Math.floor(fr), a = fr - r
+    for (let px = 0; px < SHADE_PIXELS; px++) {
+      const fc = (px + 0.5) * scale, c = Math.floor(fc), b = fc - c, l = (i: number, j: number): number => light[(r + i) * SIDE + c + j]!
+      const lit = (l(0, 0) * (1 - b) + l(0, 1) * b) * (1 - a) + (l(1, 0) * (1 - b) + l(1, 1) * b) * a
+      if (!Number.isNaN(lit)) out[py * SHADE_PIXELS + px] = Math.max(0, Math.min(255, Math.round(FLAT + lit * 255 * strength)))
+    }
+  }
+  return out
+}
+
 /** The height at a point of the world inside a block, between the four heights around it; NaN where there is none. */
 export function heightAt(h: Float32Array, column: number, row: number, x: number, y: number): number {
   const fr = ((32 - row) * BLOCK_YARDS - x) / STEP, fc = ((32 - column) * BLOCK_YARDS - y) / STEP
