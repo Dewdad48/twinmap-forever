@@ -1,9 +1,9 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { BLOCK_YARDS } from '../shared/world'
-import { convertHeights, heightsDone, heightsFile, shadeFile } from './heights'
+import { convertHeights, heightsDone, heightsFile, RELIEF_VERSION, shadeFile } from './heights'
 import { servedFile } from './tiles'
 
 const chunk = (tag: string, data: Buffer): Buffer => {
@@ -32,6 +32,16 @@ test('a continent gets its heights and its relief, down to the tile of the whole
     expect(existsSync(shadeFile(folder, 6, 33, 48))).toBe(false)
     expect(heightsDone(folder)).toBe(true)
     expect(convertHeights(chunk('DIAM', maid), () => null, folder)).toEqual({ blocks: -1, missing: -1 })
+    // A relief drawn another way before: made again, the old tiles gone.
+    const marker = join(folder, 'heights', 'done.json')
+    writeFileSync(marker, JSON.stringify({ blocks: 1, missing: 1, relief: 1 }))
+    mkdirSync(join(folder, 'shade', '6', '40'), { recursive: true })
+    writeFileSync(shadeFile(folder, 6, 40, 40), 'old')
+    expect(heightsDone(folder)).toBe(false)
+    expect(convertHeights(chunk('DIAM', maid), (id) => (id === 7 ? adt : null), folder)).toEqual({ blocks: 1, missing: 1 })
+    expect(existsSync(shadeFile(folder, 6, 40, 40))).toBe(false)
+    expect(existsSync(shadeFile(folder, 0, 0, 0))).toBe(true)
+    expect(JSON.parse(readFileSync(marker, 'utf8')).relief).toBe(RELIEF_VERSION)
   } finally {
     rmSync(folder, { recursive: true, force: true })
   }

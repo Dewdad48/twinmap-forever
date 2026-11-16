@@ -65,7 +65,7 @@ export const SHADE_PIXELS = 256
 export const FLAT = 128
 
 /**
- * The shade of a block as the light from the north-west, 45 degrees up, falls on its ground: one
+ * The shade of a block as the light from the north-west falls on its ground: one
  * grey a pixel, SHADE_PIXELS x SHADE_PIXELS, FLAT where the ground is level, lighter where it faces
  * the light and darker where it turns from it. strength: how far from FLAT a slope goes. heights:
  * the heights of a block by its column and row, so the edges look across into the next one.
@@ -82,12 +82,15 @@ export function shadeOfBlock(heights: (column: number, row: number) => Float32Ar
     return v === undefined || Number.isNaN(v) ? own[Math.min(SIDE - 1, Math.max(0, r)) * SIDE + Math.min(SIDE - 1, Math.max(0, c))]! : v
   }
   // The light on each height of the grid, from the slope across it; the pixels between, blended.
-  const flat = Math.SQRT1_2, light = new Float32Array(SIDE * SIDE)
+  const light = new Float32Array(SIDE * SIDE)
   for (let r = 0; r < SIDE; r++) {
     for (let c = 0; c < SIDE; c++) {
       const east = (at(r, c + 1) - at(r, c - 1)) / (2 * STEP), south = (at(r + 1, c) - at(r - 1, c)) / (2 * STEP)
-      // The light comes from the north-west: from -east and -south, half up.
-      light[r * SIDE + c] = (0.5 * east + 0.5 * south + flat) / Math.sqrt(east * east + south * south + 1) - flat
+      // The light comes from the north-west: from -east and -south. Only how far the slope turns to
+      // it or from it counts, not how steep it is: a slope lit from the side stays as level ground
+      // does, and the map as a whole keeps its brightness (with the light half up as well, the
+      // grey over the ground came to 107 on the whole, not 128).
+      light[r * SIDE + c] = (0.5 * east + 0.5 * south) / Math.sqrt(east * east + south * south + 1)
     }
   }
   const scale = (SIDE - 1) / SHADE_PIXELS

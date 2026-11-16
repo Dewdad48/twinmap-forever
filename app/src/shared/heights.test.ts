@@ -64,4 +64,7 @@ test('the light comes from the north-west: ground rising to the east or the sout
   expect(middle(plane(-1, 0))).toBeLessThan(FLAT)
   expect(middle(plane(0, 1))).toBeGreaterThan(FLAT)
   expect(middle(plane(0, -1))).toBeLessThan(FLAT)
+  // Lit from the side (rising to the north-east): as level ground, however steep, so the map keeps its brightness.
+  expect(middle(plane(1, -1))).toBe(FLAT)
+  expect(middle(plane(3, -3))).toBe(FLAT)
 })
