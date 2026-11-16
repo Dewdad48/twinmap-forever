@@ -288,11 +288,21 @@
     ]
   }
 
+  // The shaded relief of the continent on show (main/heights.ts), over its ground and under the
+  // rooms, in soft light: its grey of level ground leaves the map as it is. Once the list of the
+  // maps is in, the continent is on show: the map itself is not watched, so it is looked at last.
+  let relief: L.Layer | undefined
+  $effect(() => {
+    relief?.remove()
+    const world = WORLDS.find((w) => w.continent === continent)
+    relief = maps.length > 0 && layers.relief && !inside && world && map ? L.tileLayer(`${TILES}/${world.name}/shade/{z}/{x}/{y}.png`, { minZoom: 0, maxZoom: 9, maxNativeZoom: 6, bounds: WORLD_BOUNDS, errorTileUrl: BLANK, keepBuffer: 4, zIndex: 3, className: 'relief' }).addTo(map) : undefined
+  })
+
   // Puts these rooms on the map, in place of the ones before.
   function showRooms(pieces: Piece[]): void {
     rooms?.remove()
     const box = boxOf(pieces)
-    rooms = map && box ? new RoomsLayer({ pieces, bounds: boundsOfBox(box), keepBuffer: 2, zIndex: 3 }).addTo(map) : undefined
+    rooms = map && box ? new RoomsLayer({ pieces, bounds: boundsOfBox(box), keepBuffer: 2, zIndex: 4 }).addTo(map) : undefined
   }
 
   // The cities that are always shown from the inside, on the continent on show: the rooms of
@@ -312,7 +322,7 @@
     }
     const pieces = world.pieces.filter((p) => buildings.has(p.building)), box = boxOf(pieces)
     // Not from far away: there a city is a few pixels, and its hundred pictures would be read for nothing.
-    if (box) cities = new RoomsLayer({ pieces, bounds: boundsOfBox(box), minZoom: 3, keepBuffer: 2, zIndex: 3 }).addTo(map)
+    if (box) cities = new RoomsLayer({ pieces, bounds: boundsOfBox(box), minZoom: 3, keepBuffer: 2, zIndex: 4 }).addTo(map)
   }
 
   // What the middle of the map shows, for the readout, while the map does not follow the character:
@@ -1555,6 +1565,9 @@
     color: #efe6d2;
   }
 
+  .map :global(.relief) {
+    mix-blend-mode: soft-light;
+  }
   .map :global(.leaflet-container) {
     font: inherit;
   }

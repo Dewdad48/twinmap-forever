@@ -34,6 +34,7 @@ export const LAYER_GROUPS = [
     name: 'World',
     layers: [
       { id: 'zones', name: 'Place names', built: true },
+      { id: 'relief', name: 'Relief', built: true },
       { id: 'dungeons', name: 'Dungeons', built: true },
       { id: 'routes', name: 'Flight routes', built: true },
       { id: 'bosses', name: 'Bosses in a dungeon', built: true },

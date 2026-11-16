@@ -12,6 +12,7 @@ import { WORLDS } from '../shared/world'
 import { installedBuild, openClientFiles, type ClientFiles } from './client-files'
 import { convertInteriors, ENCOUNTERS_FILE, finishedInteriors, INTERIORS_FILE, MAP_FILE, mapEntries, ROOM_PICTURES_FILE, roomPictures } from './interiors'
 import { sentKeys } from './keys'
+import { convertHeights, heightsDone } from './heights'
 import { ICONS_MADE, writeIcons } from './icons'
 import { convertWorld, dropOtherBuilds, finished, ICONS_FOLDER, MAPS_FILE, PLACES_FILE, tilesFolder, TRAVEL_FILE } from './tiles'
 
@@ -45,17 +46,30 @@ try {
   let client: ClientFiles | undefined
   const open = (): ClientFiles => (client ??= openClientFiles(gameFolder, keys))
   const table = (b: Buffer) => readTable(b, (keyName) => open().opens(keyName))
+  const progress = (percent: number): void => {
+    if (Math.floor(percent) !== told) tell({ state: 'converting', percent: Math.floor(percent) })
+    told = Math.floor(percent)
+  }
   WORLDS.forEach((world, i) => {
     let result = finished(join(folder, world.name))
+    // The heights and the relief (heights.ts) take a tenth of a continent's time when its tiles are made with them, all of it when the tiles were there already.
+    const relief = !heightsDone(join(folder, world.name)), share = result ? 1 : relief ? 0.1 : 0
+    const wdt = (): Buffer => {
+      const read = open().read(world.file)
+      if (!read) throw new Error(`the game has no world file for ${world.name}`)
+      return read
+    }
     if (!result) {
       const files = open()
-      const wdt = files.read(world.file)
-      if (!wdt) throw new Error(`the game has no world file for ${world.name}`)
-      result = convertWorld(wdt, (id) => files.read(id), join(folder, world.name), (done, total) => {
-        const percent = Math.floor(((i + done / total) / WORLDS.length) * 100)
-        if (percent !== told) tell({ state: 'converting', percent })
-        told = percent
-      })
+      result = convertWorld(wdt(), (id) => files.read(id), join(folder, world.name), (done, total) => progress(((i + (1 - share) * (done / total)) / WORLDS.length) * 100))
+    }
+    if (relief) {
+      try {
+        const files = open()
+        convertHeights(wdt(), (id) => files.read(id), join(folder, world.name), (done, total) => progress(((i + 1 - share + share * (done / total)) / WORLDS.length) * 100))
+      } catch {
+        // The map does without its relief; it is tried again at the next start.
+      }
     }
     tiles += result.tiles
     missing += result.missing
