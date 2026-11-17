@@ -10,13 +10,18 @@
 -- than what the app holds; nothing at all when it holds everything.
 --   who   { name, race, class, level }   race and class as the game's tokens ("Gnome", "WARLOCK")
 --   money copper
---   bags  { { b = container, n = slots, s = { { slot, item, count }, ... } }, ... } backpack, bags, keyring
+--   bags  { { b = container, n = slots, s = { { slot, item, count }, ... } }, ... } backpack, bags, reagent bag, keyring
 --   bank  the same for the bank and its bags, as they were when last open
 --   gear  { { slot, item, durability, most }, ... } durability missing for what does not wear
 local _, ns = ...
 
-local BAGS = { 0, 1, 2, 3, 4, -2 } -- backpack, the four bags, keyring
-local BANK = { -1, 5, 6, 7, 8, 9, 10 } -- the bank, and its six bags
+-- The containers by the game's own numbers, as Bagnon takes them: on Forever the bags go up to the
+-- reagent bag (5), and the bank's bags come after it.
+local WORN_BAGS = NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4
+local BAGS, BANK = {}, { BANK_CONTAINER or -1 }
+for bag = BACKPACK_CONTAINER or 0, WORN_BAGS do BAGS[#BAGS + 1] = bag end
+if KEYRING_CONTAINER then BAGS[#BAGS + 1] = KEYRING_CONTAINER end
+for bag = WORN_BAGS + 1, WORN_BAGS + (NUM_BANKBAGSLOTS or 6) do BANK[#BANK + 1] = bag end
 local WORN = 19 -- equipment slots, head to tabard
 
 local function Ok(ok, ...) if ok then return ... end end
