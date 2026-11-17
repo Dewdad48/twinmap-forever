@@ -48,9 +48,29 @@ const STUB = `
     return "Catubbio", "Sucameli"
   end
   function UnitClass(unit)
+    if unit == "player" then return GAME.class, GAME.class end
     local other = GAME.party and GAME.party[unit]
     return other and other.class, other and other.class
   end
+  -- The sheet, once GAME.surname is set (the full name is the key of a sheet). GAME.race and GAME.class as the game's tokens, GAME.money in copper,
+  -- GAME.bags[container] = { size = n, items = { [slot] = { item, count } } } (6 to 12: the bank),
+  -- GAME.worn[slot] = { item, durability, most }.
+  -- The numbers of the containers as Forever has them: four bags and the reagent bag, the keyring -1,
+  -- no BANK_CONTAINER nor NUM_BANKBAGSLOTS (the bank is 6, its bags after).
+  BACKPACK_CONTAINER, KEYRING_CONTAINER, NUM_BAG_SLOTS, NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0, -1, 4, 5
+  function UnitFullName(unit) if unit == "player" and GAME.surname then return "Catubbio", GAME.surname end end
+  function UnitRace(unit) if unit == "player" then return GAME.race, GAME.race end end
+  function GetMoney() return GAME.money end
+  C_Container = {
+    GetContainerNumSlots = function(bag) local c = GAME.bags and GAME.bags[bag] return c and c.size or 0 end,
+    GetContainerItemInfo = function(bag, slot)
+      local c = GAME.bags and GAME.bags[bag]
+      local it = c and c.items[slot]
+      if it then return { itemID = it[1], stackCount = it[2] } end
+    end,
+  }
+  function GetInventoryItemID(_, slot) local w = GAME.worn and GAME.worn[slot] return w and w[1] end
+  function GetInventoryItemDurability(slot) local w = GAME.worn and GAME.worn[slot] if w then return w[2], w[3] end end
   function UnitGroupRolesAssigned(unit)
     local other = GAME.party and GAME.party[unit]
     return other and other.role or "NONE"
