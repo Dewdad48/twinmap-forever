@@ -1,12 +1,14 @@
 import { expect, test } from 'vitest'
-import { coins, filterRows, itemRows, othersHolding, sortRows, type Column, type ItemFacts } from './items'
+import { coins, filterRows, itemRows, othersHolding, shopRows, sortRows, type Column, type ItemFacts } from './items'
 import type { Sheet } from './sheet'
 
 const FACTS: ItemFacts = {
-  858: ['Lesser Healing Potion', 1, 25, 0, 1],
-  2589: ['Linen Cloth', 1, 13, 7, 5],
-  4373: ['Shadow Goggles', 2, 722, 4, 1],
-  5396: ['Key to Searing Gorge', 1, 0, 13, 0],
+  858: ['Lesser Healing Potion', 1, 25, 0, 1, 100, 1, 0],
+  2589: ['Linen Cloth', 1, 13, 7, 5, 0, 1, 0],
+  4373: ['Shadow Goggles', 2, 722, 4, 1, 0, 1, 0],
+  5396: ['Key to Searing Gorge', 1, 0, 13, 0, 0, 1, 0],
+  159: ['Refreshing Spring Water', 1, 1, 0, 5, 25, 5, 0],
+  21815: ['Love Token', 1, 0, 15, 0, 10, 10, 335],
 }
 const sheet = (pieces: Record<string, unknown>): Sheet => ({ code: 'c', rev: 1, pieces, at: {} })
 const CATUBBIO = sheet({
@@ -60,4 +62,12 @@ test('the other characters holding what is typed, the one shown left out', () =>
 test('copper as coins', () => {
   expect(coins(107605)).toEqual([[10, 'g'], [76, 's'], [5, 'c']])
   expect(coins(500)).toEqual([[5, 's']])
+})
+
+test('a vendor sells by name, at its price for so many; what the game has no row of has no price; holiday goods are left out', () => {
+  expect(shopRows([159, 21815, 858, 240024], FACTS)).toEqual([
+    { id: 240024, name: 'Item 240024', quality: 1, buy: null, perBuy: 1 },
+    { id: 858, name: 'Lesser Healing Potion', quality: 1, buy: 100, perBuy: 1 },
+    { id: 159, name: 'Refreshing Spring Water', quality: 1, buy: 25, perBuy: 5 },
+  ])
 })
