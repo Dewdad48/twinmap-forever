@@ -64,6 +64,7 @@ local function Json(v)
   end
   return "null"
 end
+ns.Json = Json -- Sheet.lua tells a change by the text
 
 ---------------------------------------------------------------------------
 -- Sections: what gets sent. Each builder runs in a pcall.

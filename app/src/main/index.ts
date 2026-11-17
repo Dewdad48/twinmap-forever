@@ -4,6 +4,7 @@ import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { keep, keptFrom } from '../shared/kept'
+import { heldOf, mergeSheet, sheetNewsFrom, sheetsFrom, type Sheets } from '../shared/sheet'
 import { linkStatus, lostPercent } from '../shared/link'
 import { logFrom, shownFrom, type QuestsStatus } from '../shared/quests'
 import type { Found } from '../shared/search'
@@ -343,6 +344,43 @@ function createWindow(): void {
   // The way back to the game: once the addon is there, the bank of font names and the slots go next
   // to it, by themselves and once. Where that fails (a folder that cannot be written) the map works all the same.
   let channel: Promise<unknown> | null = null
+  // The character sheets (Sheet.lua): one for each character seen, in a file beside the settings,
+  // written whole and then put in place, as the pins are. The addon sends what changed after the
+  // revision the app holds; the app tells that revision back, the part "sheet", and the addon stops.
+  // It is told too when the channel is ready, with the sync: what changed while the app was closed then comes.
+  const sheetsFile = join(app.getPath('userData'), 'sheets.json')
+  let sheets: Sheets = {}
+  try {
+    sheets = sheetsFrom(JSON.parse(readFileSync(sheetsFile, 'utf8')))
+  } catch {
+    // no character seen yet
+  }
+  let sheetHeard = ''
+  const takeSheet = (section: unknown): void => {
+    const text = JSON.stringify(section ?? null)
+    if (text === sheetHeard) return
+    sheetHeard = text
+    const news = sheetNewsFrom(section)
+    if (!news) return
+    const now = mergeSheet(sheets, news, Date.now())
+    if (now !== sheets) {
+      sheets = now
+      record.note('sheet', `revision ${news.rev}: ${Object.keys(news.p).sort().join(', ')}`) // which pieces came, never what is in them
+      try {
+        writeFileSync(`${sheetsFile}.new`, JSON.stringify(sheets))
+        renameSync(`${sheetsFile}.new`, sheetsFile)
+      } catch {
+        // kept for this run only: the addon is told all the same, and sends again what is lost when the app opens next
+      }
+    }
+    if (!gameFolder) return
+    try {
+      const addons = addonsFolder(gameFolder), held = heldOf(sheets)
+      if (JSON.stringify(sentParts(addons).sheet) !== JSON.stringify(held)) send(addons, { sheet: held }, addonHearsFonts(gameFolder))
+    } catch {
+      // the way to the game is not there yet: the addon sends again until it is
+    }
+  }
   // My pins: the game draws them on its own map, so it is to have the points saved here and no
   // other. The window tells them at every change and when it loads; only what changed is sent.
   // A send the addon has not read yet when the next one leaves costs one of its slots, and it reads
@@ -373,7 +411,7 @@ function createWindow(): void {
     // app, which is the newest the addon can be: an older addon says so in the game's chat.
     // Small enough to ride the font.
     channel = installChannel(addons)
-      .then(() => void send(addons, { sync: Date.now(), latest: app.getVersion() }, addonHearsFonts(gameFolder!)))
+      .then(() => void send(addons, { sync: Date.now(), latest: app.getVersion(), sheet: heldOf(sheets) }, addonHearsFonts(gameFolder!)))
       .then(() => (marksTimer ??= setTimeout(sendMarks, MARKS_WAIT)))
       .catch(() => {})
   }
@@ -459,6 +497,7 @@ function createWindow(): void {
       }
     }
     quests.show(snapshot.state.sections.questie, snapshot.state.sections.quests)
+    takeSheet(snapshot.state.sections.sheet)
     win.webContents.send('link', snapshot)
     win.webContents.send('tiles', tiles.status())
     win.webContents.send('setup', setup)
