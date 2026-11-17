@@ -3,17 +3,22 @@
 // gives for it, its type. Those come from the player's game (items.json, made beside the map by
 // tiles-worker.ts): ItemSparse with the rows the server has sent over it, and Item for the type.
 import type { Sheet, Sheets } from './sheet'
-import type { Table } from './wdc5'
+import { readHotfixes, readTable, type Table } from './wdc5'
 
 export const ITEMS_FILE = 'items.json'
-export const ITEM_FILE = 841626 // class column 0, subclass column 1
-export const ITEM_SPARSE_FILE = 1572924
-export const ITEM_SPARSE_TABLE = 0x919be54e // its number among the server's rows (DBCache.bin)
-export const ITEM_SPARSE_TEXTS = [0, 1, 2, 3, 4] // description and the four names
-const NAME = 4, SELL = 22, QUALITY = 66
+const ITEM_FILE = 841626 // class column 0, subclass column 1
+const ITEM_SPARSE_FILE = 1572924
+const ITEM_SPARSE_TABLE = 0x919be54e // its number among the server's rows (DBCache.bin)
+const ITEM_SPARSE_TEXTS = [0, 1, 2, 3, 4] // description and the four names
+const NAME = 4, SELL = 22, BUY = 23, PER_BUY = 24, HOLIDAY = 37, QUALITY = 66
 
-/** By the item's number: name, quality (0 poor to 7), sell price in copper, class, subclass. */
-export type ItemFacts = Record<string, [string, number, number, number, number]>
+/**
+ * By the item's number: name, quality (0 poor to 7), sell price in copper, class, subclass, buy
+ * price in copper (for perBuy of them), perBuy, and the holiday (Holidays table) it is sold for, 0 if none.
+ */
+export type ItemFacts = Record<string, [string, number, number, number, number, number, number, number]>
+/** How many facts an item has: a file with fewer was made by an older app. */
+export const FACTS = 8
 
 /** What the game's tables say of every item. hotfixes: the server's rows of ItemSparse (null where taken away). */
 export function itemFacts(item: Table, sparse: Table, hotfixes: Map<number, Buffer | null>): ItemFacts {
@@ -32,12 +37,42 @@ export function itemFacts(item: Table, sparse: Table, hotfixes: Map<number, Buff
   for (const [id, r] of rows) {
     try {
       const [cls, sub] = kind.get(id) ?? [-1, 0]
-      out[id] = [r.text(NAME), r.int(QUALITY), Math.max(0, r.int(SELL)), cls, sub]
+      out[id] = [r.text(NAME), r.int(QUALITY), Math.max(0, r.int(SELL)), cls, sub, Math.max(0, r.int(BUY)), Math.max(1, r.int(PER_BUY)), r.int(HOLIDAY)]
     } catch {
       // A row cut short: the item goes without its facts.
     }
   }
   return out
+}
+
+export interface ShopRow {
+  id: number
+  name: string
+  quality: number
+  /** In copper, for perBuy of them; null when the game has no row for the item (the server sends it when met). */
+  buy: number | null
+  perBuy: number
+}
+
+/** What a vendor sells (its items from QuestieDB, shops in questie.ts) by name; what is sold only on a holiday left out. */
+export function shopRows(items: number[], facts: ItemFacts): ShopRow[] {
+  return items
+    .flatMap((id): ShopRow[] => {
+      const f = facts[id]
+      if (!f) return [{ id, name: `Item ${id}`, quality: 1, buy: null, perBuy: 1 }]
+      return f[7] ? [] : [{ id, name: f[0], quality: f[1], buy: f[5], perBuy: f[6] }]
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** The facts of the player's game (ClientFiles of main), with the rows of the server's caches (DBCache.bin) over them; null without the tables. */
+export function gameItemFacts(files: { read(id: number, skipHidden?: boolean): Buffer | null; opens(keyName: string): boolean }, sent: Buffer[]): ItemFacts | null {
+  const item = files.read(ITEM_FILE, true), sparse = files.read(ITEM_SPARSE_FILE, true)
+  if (!item || !sparse) return null
+  // ponytail: every language's rows go over each other; the game runs in one.
+  const hotfixes = new Map(sent.flatMap((cache) => [...readHotfixes(cache, ITEM_SPARSE_TABLE)]))
+  const opens = (keyName: string): boolean => files.opens(keyName)
+  return itemFacts(readTable(item, opens), readTable(sparse, opens, ITEM_SPARSE_TEXTS), hotfixes)
 }
 
 // The names the game gives the classes of items, and the subclasses of weapons and armour.

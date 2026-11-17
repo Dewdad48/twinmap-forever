@@ -3,12 +3,12 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
-import { ITEM_FILE, ITEM_SPARSE_FILE, ITEM_SPARSE_TABLE, ITEM_SPARSE_TEXTS, itemFacts, ITEMS_FILE } from '../shared/items'
+import { FACTS, gameItemFacts, type ItemFacts, ITEMS_FILE } from '../shared/items'
 import { gameMaps, UI_MAP_ASSIGNMENT_FILE, UI_MAP_FILE, type GameMap } from '../shared/maps'
 import { AREA_POI_FILE, AREA_TABLE_FILE, places, UI_MAP_X_MAP_ART_FILE, WORLD_MAP_OVERLAY_FILE } from '../shared/places'
 import { TAXI_NODES_FILE, TAXI_PATH_FILE, travel, TRAVEL_FORMAT, type Travel } from '../shared/services'
 import type { TilesStatus } from '../shared/tiles-status'
-import { readHotfixes, readTable } from '../shared/wdc5'
+import { readTable } from '../shared/wdc5'
 import { WORLDS } from '../shared/world'
 import { installedBuild, openClientFiles, type ClientFiles } from './client-files'
 import { convertInteriors, ENCOUNTERS_FILE, finishedInteriors, INTERIORS_FILE, MAP_FILE, mapEntries, ROOM_PICTURES_FILE, roomPictures } from './interiors'
@@ -115,21 +115,24 @@ try {
   }
   // The pictures of the pins. A folder made before the app knew of them, or of some of them, gets them now.
   if (!existsSync(join(folder, ICONS_FOLDER, ICONS_MADE))) writeIcons(open(), folder)
-  // What the game says of each item, for the Items section (shared/items.ts): made again when the
-  // server has sent rows since, which the game keeps in its cache beside the keys (keys.ts).
+  // What the game says of each item, for the Items section and the vendors (shared/items.ts): made
+  // again when the server has sent rows since, which the game keeps in its cache beside the keys
+  // (keys.ts), or when an older app made it with fewer facts.
   try {
     const caches = join(gameFolder, '_forever_', 'Cache', 'ADB')
     const sent = existsSync(caches) ? readdirSync(caches).map((language) => join(caches, language, 'DBCache.bin')).filter((f) => existsSync(f)) : []
     const itemsFile = join(folder, ITEMS_FILE)
     const made = existsSync(itemsFile) ? statSync(itemsFile).mtimeMs : 0
-    if (!made || sent.some((f) => statSync(f).mtimeMs > made)) {
-      const files = open()
-      const item = files.read(ITEM_FILE, true), sparse = files.read(ITEM_SPARSE_FILE, true)
-      if (item && sparse) {
-        // ponytail: every language's rows go over each other; the game runs in one.
-        const hotfixes = new Map(sent.flatMap((f) => [...readHotfixes(readFileSync(f), ITEM_SPARSE_TABLE)]))
-        writeFileSync(itemsFile, JSON.stringify(itemFacts(table(item), readTable(sparse, (keyName) => open().opens(keyName), ITEM_SPARSE_TEXTS), hotfixes)))
+    const older = (): boolean => {
+      try {
+        return Object.values(JSON.parse(readFileSync(itemsFile, 'utf8')) as ItemFacts)[0]?.length !== FACTS
+      } catch {
+        return true
       }
+    }
+    if (!made || sent.some((f) => statSync(f).mtimeMs > made) || older()) {
+      const facts = gameItemFacts(open(), sent.map((f) => readFileSync(f)))
+      if (facts) writeFileSync(itemsFile, JSON.stringify(facts))
     }
   } catch {
     // Items shows numbers and no prices; tried again at the next start.

@@ -165,6 +165,19 @@ export function openQuestie(gameFolder: string): Questie | null {
   return { version: /^## Version: *(.+)$/m.exec(text)?.[1]?.trim() ?? 'unknown', ids, get, places, zoneIndex }
 }
 
+/** What each vendor sells, by the NPC's number: QuestieDB lists the sellers of each item, turned round here. Prices and names are the game's (shopRows in shared/items.ts). */
+export function shops(db: Questie): Map<number, number[]> {
+  const out = new Map<number, number[]>()
+  for (const item of db.ids.Item)
+    for (const npc of list(db.get('Item', item, ITEM.vendors))) {
+      if (typeof npc !== 'number') continue
+      const sold = out.get(npc)
+      if (sold) sold.push(item)
+      else out.set(npc, [item])
+    }
+  return out
+}
+
 /** Every name the search looks through: NPCs, quests and items, each once for all that share it. */
 export interface SearchIndex { kind: Found['kind']; name: string; lower: string; ids: number[] }
 
