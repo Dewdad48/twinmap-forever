@@ -232,6 +232,10 @@
         {#each journey.legs as leg, i (i)}
           <div class="row"><span>{leg.text}</span><span class="num">{span(leg.seconds)}</span></div>
         {/each}
+        <!-- Where the legs start and end comes from Shortest Path 1.39 and later, through an addon that tells it: without them a flight or a boat has no line. -->
+        {#if journey.legs.some((leg) => leg.mode !== 'walk') && !journey.legs.some((leg) => leg.ends)}
+          <div class="row hint"><span>Update Shortest Path and the Twinmap Forever addon to see the whole way here</span></div>
+        {/if}
       {/if}
     </div>{/if}
   {/if}
@@ -284,6 +288,15 @@
   .legs .row > :last-child:not(:first-child) {
     color: var(--text-dim);
     white-space: nowrap;
+  }
+  /* The hint is read whole: it goes on to a second line rather than being cut. */
+  .legs .hint {
+    height: auto;
+    padding-block: 3px;
+  }
+  .legs .hint span {
+    color: var(--text-dim);
+    white-space: normal;
   }
   .attention img {
     height: 16px;
