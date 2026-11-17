@@ -78,7 +78,7 @@
   let layersOpen = $state(false)
   // The point the player clicked, with its label: in map units, and where that is in the map's box now.
   // pin: the same point as the game names it, a zone map and a place on it; none where no zone is.
-  let labelled = $state<{ units: Point; continent: Continent; title: string; where: string; spot: Point; box: Size; pin: { m: number; x: number; y: number } | null; plain?: boolean; notes?: string[]; dungeons?: { id: number; name: string; raid: boolean }[]; wing?: string } | null>(null)
+  let labelled = $state<{ units: Point; continent: Continent; title: string; where: string; spot: Point; box: Size; pin: { m: number; x: number; y: number } | null; plain?: boolean; notes?: string[]; dungeons?: { id: number; name: string; raid: boolean }[]; wing?: string; item?: number } | null>(null)
   // Where the character is on the world map, for the distance on the label.
   let me = $state<{ units: Point; continent: Continent } | null>(null)
   // The yards and the time are those of the way on foot, where one is found: asked for the one point, again every few dozen yards.
@@ -556,7 +556,7 @@
    * Takes the map to a place and opens the label on it: for a row chosen in the panel, for a
    * result of the search. zoom: how near to look, when the map is farther than that.
    */
-  export function goTo(to: { continent: Continent; at: Point; title: string; where?: string; zoom?: number; whole?: GameMap; dungeon?: { id: number; wing?: string } }): void {
+  export function goTo(to: { continent: Continent; at: Point; title: string; where?: string; zoom?: number; whole?: GameMap; dungeon?: { id: number; wing?: string }; item?: number }): void {
     if (!map || !maps.length) return
     following = false
     if (inside || continent !== to.continent) show(to.continent, false)
@@ -580,6 +580,7 @@
       spot: view.latLngToContainerPoint(at(to.at)),
       box: { width: holder.clientWidth, height: holder.clientHeight },
       pin: found ? { m: found.zone.id, ...found.place } : null,
+      ...(to.item && { item: to.item }), // an item found: its picture beside the name
     }
   }
 
@@ -1282,6 +1283,7 @@
   {#key labelled.units}
     <PointLabel
       title={savedIndex >= 0 ? pointName : labelled.title}
+      item={labelled.item}
       notes={labelled.notes}
       where={labelled.where}
       {way}

@@ -10,9 +10,11 @@
   import { fade, scale } from 'svelte/transition'
   import Glyph from './Glyph.svelte'
   import { gone, pop } from './motion'
+  import { TILES } from './web'
 
   let {
     title,
+    item, // an item found: its picture from the player's game stands beside the name
     notes = [], // what the point is, when it is a pin of the map: whose quest, what service
     where, // zone coordinates, or nothing
     way, // distance, direction and time from the character, when it is on this map
@@ -34,6 +36,7 @@
     ondungeon,
   }: {
     title: string
+    item?: number
     notes?: string[]
     where: string
     way: { far: string; time: string } | null
@@ -103,7 +106,7 @@
   {#if saved}
     <input class="name" aria-label="Name of the pin" value={title} maxlength="60" spellcheck="false" onchange={(e) => onrename(e.currentTarget.value)} onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
   {:else}
-    <h3>{title}</h3>
+    <h3>{#if item}<img class="pic" src="{TILES}/items/{item}.png" alt="" onerror={(e) => e.currentTarget.remove()} />{/if}{title}</h3>
   {/if}
   {#each notes as note}<p>{note}</p>{/each}
   {#if where}<p class="dim">{where}</p>{/if}
@@ -164,6 +167,15 @@
     font: 400 18px/22px var(--display);
     color: var(--gold);
     text-shadow: 0 1px 0 #000;
+  }
+  .pic {
+    width: 22px;
+    height: 22px;
+    margin: 0 8px -5px 0;
+    border-radius: 2px;
+    box-shadow:
+      0 0 0 1px #000,
+      0 0 0 2px var(--bronze-700);
   }
   /* The name of a saved pin is written over: it looks like the title until it is pointed at or held. */
   .name {

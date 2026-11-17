@@ -14,6 +14,7 @@ import { convertInteriors, ENCOUNTERS_FILE, finishedInteriors, INTERIORS_FILE, M
 import { sentKeys } from './keys'
 import { convertHeights, heightsDone } from './heights'
 import { ICONS_MADE, writeIcons } from './icons'
+import { itemIcons } from './item-icons'
 import { convertWorld, dropOtherBuilds, finished, ICONS_FOLDER, MAPS_FILE, PLACES_FILE, tilesFolder, TRAVEL_FILE } from './tiles'
 
 const { gameFolder, base } = workerData as { gameFolder: string; base: string }
@@ -45,6 +46,12 @@ try {
   // and a few hundred megabytes, and on most starts the tiles are already there.
   let client: ClientFiles | undefined
   const open = (): ClientFiles => (client ??= openClientFiles(gameFolder, keys))
+  // The picture of an item, when a screen asks for one the folder does not have yet (item-icons.ts).
+  // Asked while the map is being made, it is answered once the making is done.
+  const itemIcon = itemIcons(open, folder)
+  parentPort?.on('message', (asked: { item?: unknown }) => {
+    if (typeof asked.item === 'number') parentPort?.postMessage({ item: asked.item, made: itemIcon(asked.item) })
+  })
   const table = (b: Buffer) => readTable(b, (keyName) => open().opens(keyName))
   const progress = (percent: number): void => {
     if (Math.floor(percent) !== told) tell({ state: 'converting', percent: Math.floor(percent) })

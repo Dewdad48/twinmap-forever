@@ -50,14 +50,31 @@ function findGameFolder(picked: string | undefined): string | null {
 
 // Makes the map tiles from the game's files, once per build of the game, and keeps the latest word on it.
 // The folder: TWINMAP_DATA when set (for trials), or Twinmap under the local application data.
-function startTiles(gameFolder: string | null): { status: () => TilesStatus; stop: () => void } {
+function startTiles(gameFolder: string | null): { status: () => TilesStatus; item: (item: number) => Promise<boolean>; stop: () => void } {
   let status: TilesStatus = { state: 'looking' }
-  if (!gameFolder) return { status: () => ({ state: 'no-game' }), stop: () => {} }
+  if (!gameFolder) return { status: () => ({ state: 'no-game' }), item: () => Promise.resolve(false), stop: () => {} }
   const base = process.env.TWINMAP_DATA ?? join(process.env.LOCALAPPDATA ?? app.getPath('userData'), 'Twinmap')
   const worker = startTilesWorker({ workerData: { gameFolder, base } })
-  worker.on('message', (told: TilesStatus) => (status = told))
-  worker.on('error', (e) => (status = { state: 'failed', message: e instanceof Error ? e.message : String(e) }))
-  return { status: () => status, stop: () => void worker.terminate() }
+  // The picture of an item the folder does not have yet is made by the worker, which has the game's archive (item-icons.ts).
+  const items = new Map<number, ((made: boolean) => void)[]>()
+  worker.on('message', (told: TilesStatus | { item: number; made: boolean }) => {
+    if (!('item' in told)) return void (status = told)
+    for (const answer of items.get(told.item) ?? []) answer(told.made)
+    items.delete(told.item)
+  })
+  worker.on('error', (e) => {
+    status = { state: 'failed', message: e instanceof Error ? e.message : String(e) }
+    for (const answers of items.values()) for (const answer of answers) answer(false)
+    items.clear()
+  })
+  const item = (id: number): Promise<boolean> =>
+    new Promise((answer) => {
+      const waiting = items.get(id)
+      if (waiting) return void waiting.push(answer)
+      items.set(id, [answer])
+      worker.postMessage({ item: id })
+    })
+  return { status: () => status, item, stop: () => void worker.terminate() }
 }
 
 // The quests on the map: the player's QuestieDB is opened once, and asked for the pins of what
@@ -213,7 +230,11 @@ function createWindow(): void {
   const served = async (path: string): Promise<Served> => {
     const status = tiles.status()
     const file = status.state === 'ready' ? servedFile(status.folder, path) : null
-    const bytes = file ? await readFile(file).catch(() => null) : null
+    let bytes = file ? await readFile(file).catch(() => null) : null
+    // The picture of an item is made the first time it is asked for; one the game has none of is no picture at all.
+    const item = /^\/items\/(\d+)\.png$/.exec(path)
+    if (item && file && !bytes) bytes = (await tiles.item(Number(item[1]))) ? await readFile(file).catch(() => null) : null
+    if (item && !bytes) return { status: 404 }
     // Where the game has no picture there is no file. That is the sea, not a fault: an empty picture for
     // a tile and an empty answer for a block, so the page logs no error for it.
     if (!bytes) return file?.endsWith('.png') ? { status: 200, type: 'image/gif', bytes: BLANK } : { status: file ? 204 : 404 }

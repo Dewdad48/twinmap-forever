@@ -247,7 +247,7 @@ export function search(db: Questie, index: SearchIndex[], typed: string, most = 
       } else {
         const sellers = numbers(db.get('Item', id, ITEM.vendors)).flatMap((npc): Found[] => {
           const where = spot('Npc', npc), side = db.get('Npc', npc, NPC.friendly)
-          return where ? [{ kind: 'item', name: entry.name, note: `Sold by ${text(db.get('Npc', npc, NPC.name))}`, ...where, does: true, ...(typeof side === 'string' ? { side } : {}) }] : []
+          return where ? [{ kind: 'item', name: entry.name, note: `Sold by ${text(db.get('Npc', npc, NPC.name))}`, ...where, does: true, item: id, ...(typeof side === 'string' ? { side } : {}) }] : []
         })
         if (sellers.length > 1) {
           shops.push(...sellers.slice(0, DOERS_MOST - shops.length))
@@ -257,7 +257,7 @@ export function search(db: Questie, index: SearchIndex[], typed: string, most = 
         const seller = firstOf('Npc', numbers(db.get('Item', id, ITEM.vendors))), dropper = seller ? null : firstOf('Npc', numbers(db.get('Item', id, ITEM.npcDrops)))
         const holder = seller || dropper ? null : firstOf('Object', numbers(db.get('Item', id, ITEM.objectDrops)))
         const who = seller ?? dropper ?? holder
-        if (who) hit = { kind: 'item', name: entry.name, note: `${seller ? 'Sold by' : dropper ? 'Dropped by' : 'Found in'} ${who.name}`, ...who.where }
+        if (who) hit = { kind: 'item', name: entry.name, note: `${seller ? 'Sold by' : dropper ? 'Dropped by' : 'Found in'} ${who.name}`, ...who.where, item: id }
       }
       if (hit) {
         found.push(hit)
