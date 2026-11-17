@@ -179,25 +179,6 @@
     margin: 0 0 0 auto;
     color: var(--text-dim);
   }
-  .coin {
-    display: inline-block;
-    width: 9px;
-    height: 9px;
-    margin: 0 4px 0 2px;
-    border-radius: 50%;
-    box-shadow:
-      inset 0 -1px 0 #0006,
-      0 0 0 1px #000a;
-  }
-  .coin.g {
-    background: #e8c25a;
-  }
-  .coin.s {
-    background: #c8ccd2;
-  }
-  .coin.c {
-    background: #c07a46;
-  }
   table {
     width: 100%;
     border-collapse: collapse;

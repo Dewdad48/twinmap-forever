@@ -12,7 +12,7 @@ import { readTable } from '../shared/wdc5'
 import type { ClientFiles } from './client-files'
 import { encodePng } from './png'
 
-export const ITEMS_FOLDER = 'items'
+export const ITEMS_FOLDER = 'items', PICTURES_FOLDER = 'pictures'
 const ITEM_FILE = 841626, ITEM_ICON = 7 // the table of the items, and its column with the number of the picture (icons.ts)
 const LOOKS_FILE = 982457, LOOK_ITEM = 1, LOOK_ORDER = 2, LOOK_APPEARANCE = 3 // ItemModifiedAppearance: item, which of its looks, appearance
 const APPEARANCES_FILE = 982462, APPEARANCE_ICON = 2 // ItemAppearance: the picture of each appearance
@@ -44,6 +44,31 @@ function picturesOf(files: ClientFiles): Map<number, number> {
     first.set(item, order)
   }
   return pictures
+}
+
+/**
+ * A maker of pictures of the game by their file number, for one build: the spells of the trainers
+ * (trainers.json gives each its picture's file). Kept in <folder>/pictures; a file that is no picture gets a .none.
+ */
+export function gamePictures(files: () => ClientFiles, folder: string): (id: number) => boolean {
+  return (id) => {
+    const made = join(folder, PICTURES_FOLDER, `${id}.png`), none = join(folder, PICTURES_FOLDER, `${id}.none`)
+    if (existsSync(made)) return true
+    if (existsSync(none)) return false
+    mkdirSync(join(folder, PICTURES_FOLDER), { recursive: true })
+    try {
+      const f = files().read(id)
+      if (f) {
+        const { width, height, rgba } = decodeBlpCutout(f)
+        writeFileSync(made, encodePng(rgba, width, height, 4))
+        return true
+      }
+    } catch {
+      // not a picture, or one stored some other way
+    }
+    writeFileSync(none, '')
+    return false
+  }
 }
 
 /**

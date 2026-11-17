@@ -26,6 +26,7 @@
   import Settings from './Settings.svelte'
   import Picker from './Picker.svelte'
   import Items from './Items.svelte'
+  import NpcPanel from './NpcPanel.svelte'
   import { firstName, knownOf, shownOf } from '../../shared/characters'
   import type { Sheets } from '../../shared/sheet'
 
@@ -142,6 +143,8 @@
     if (inGame) lastInGame = inGame
   })
   const characters = $derived(knownOf(sheets, inGame))
+  // The vendor or trainer whose label is open on the map: its panel tops the side panel until closed.
+  let npc = $state.raw<FixedPin | null>(null)
   const shown = $derived(shownOf(characters, picked))
   const mapReady = $derived(tiles?.state === 'ready')
   const insideReady = $derived(tiles?.state === 'ready' && !!tiles.interiors && !tiles.interiors.problem)
@@ -227,7 +230,7 @@
 <div class="work" class:shut={!panelOpen} in:fade={screen} inert={onSettings || onItems} style:--peek="{peek}px">
   <div class="mapbox">
     {#if mapReady}
-      <Map {pos} {group} {death} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {route} onroute={(stop) => setRoute(addStop(route, stop))} />
+      <Map {pos} {group} {death} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {route} onroute={(stop) => setRoute(addStop(route, stop))} onnpc={(pin) => (npc = pin)} />
     {:else if tiles}
       <div class="making" class:failed={tiles.state === 'failed' || tiles.state === 'no-game'}>
         <p>{tilesLine(tiles)}</p>
@@ -269,6 +272,9 @@
         <span>Showing <b style:color={shown.color}>{shown.key}</b></span>
         <button class="btn back" onclick={() => (picked = null)}>Back to {firstName(inGame)}</button>
       </p>
+    {/if}
+    {#if npc}
+      {#key npc}<NpcPanel pin={npc} {sheets} {shown} {now} onclose={() => (npc = null)} />{/key}
     {/if}
     <Now
       {pos}
@@ -649,6 +655,7 @@
   }
   /* Closed: the next stop, as a sign reads it, and nothing to press but the way to open. */
   .panel.closed .viewing,
+  .panel.closed :global(.npc),
   .panel.closed footer,
   .panel.closed :global(.now > :not(.plate, .none)),
   .panel.closed :global(.plate > :not(h2, .sign, .sheen)) {

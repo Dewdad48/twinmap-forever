@@ -3,16 +3,18 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { gameFolderFrom, openClientFiles, registryInstallPath, type ClientFiles } from './client-files'
-import { itemIconFile, itemIconLooked, itemIcons } from './item-icons'
+import { gamePictures, itemIconFile, itemIconLooked, itemIcons } from './item-icons'
 import { servedFile } from './tiles'
 
 const real = gameFolderFrom([registryInstallPath()])
 const PNG = '89504e47'
 
-test('an item picture is served from the folder of the build, and nothing else is', () => {
+test('an item picture, or a spell picture by its file, is served from the folder of the build, and nothing else is', () => {
   expect(servedFile('/b', '/items/159.png')).toBe(join('/b', 'items', '159.png'))
   expect(servedFile('/b', '/items/../x.png')).toBeNull()
   expect(servedFile('/b', '/items/12345678.png')).toBeNull()
+  expect(servedFile('/b', '/pictures/136197.png')).toBe(join('/b', 'pictures', '136197.png'))
+  expect(servedFile('/b', '/pictures/x.png')).toBeNull()
 })
 
 // Water, linen cloth, the hearthstone, an item of Forever's own, and boots with their picture only on their look (ItemAppearance).
@@ -39,3 +41,16 @@ test.skipIf(!real)('the real game gives the pictures of items once; then they co
   expect(again(1)).toBe(false)
   expect(opened).toBeGreaterThan(0)
 })
+
+// Shadow Bolt's picture is made once; a file that is no picture (the table SpellEffect) is marked and not read again.
+test.skipIf(!real)('the real game gives the picture of a spell by its file', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'twinmap-pictures-'))
+  const make = gamePictures(() => openClientFiles(real!), folder)
+  expect(make(136197)).toBe(true)
+  expect(readFileSync(join(folder, 'pictures', '136197.png')).subarray(0, 4).toString('hex')).toBe(PNG)
+  expect(make(1140088)).toBe(false)
+  const again = gamePictures(() => {
+    throw new Error('the game was opened again')
+  }, folder)
+  expect([again(136197), again(1140088)]).toEqual([true, false])
+}, 60_000)
