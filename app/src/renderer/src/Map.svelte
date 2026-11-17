@@ -78,7 +78,7 @@
   let layersOpen = $state(false)
   // The point the player clicked, with its label: in map units, and where that is in the map's box now.
   // pin: the same point as the game names it, a zone map and a place on it; none where no zone is.
-  let labelled = $state<{ units: Point; continent: Continent; title: string; where: string; spot: Point; box: Size; pin: { m: number; x: number; y: number } | null; plain?: boolean; notes?: string[]; dungeons?: { id: number; name: string; raid: boolean }[] } | null>(null)
+  let labelled = $state<{ units: Point; continent: Continent; title: string; where: string; spot: Point; box: Size; pin: { m: number; x: number; y: number } | null; plain?: boolean; notes?: string[]; dungeons?: { id: number; name: string; raid: boolean }[]; wing?: string } | null>(null)
   // Where the character is on the world map, for the distance on the label.
   let me = $state<{ units: Point; continent: Continent } | null>(null)
   // The yards and the time are those of the way on foot, where one is found: asked for the one point, again every few dozen yards.
@@ -558,8 +558,6 @@
    */
   export function goTo(to: { continent: Continent; at: Point; title: string; where?: string; zoom?: number; whole?: GameMap; dungeon?: { id: number; wing?: string } }): void {
     if (!map || !maps.length) return
-    // A dungeon: its own map, or its door where the app has no rooms of it.
-    if (to.dungeon && openDungeon(to.dungeon.id, to.dungeon.wing)) return
     following = false
     if (inside || continent !== to.continent) show(to.continent, false)
     const view = map
@@ -567,6 +565,12 @@
     if (to.whole?.rect) view.fitBounds(boundsOf(to.whole), { animate: false })
     else view.setView(at(to.at), Math.max(view.getZoom(), to.zoom ?? 5), { animate: false })
     const found = zoneAt(maps, to.continent, to.at)
+    // A dungeon: its door, labelled as a click on it labels it; Dungeon Map opens the wing that was found.
+    const door = to.dungeon && travel.doors.find((d) => d.continent === to.continent && d.x === to.at.x && d.y === to.at.y)
+    if (door) {
+      labelPin(to.at, door.names.join(', '), ['Entrance'], found, behindDoor(door), to.dungeon!.wing)
+      return
+    }
     labelled = {
       units: to.at,
       continent: to.continent,
@@ -581,7 +585,7 @@
 
   // A click on a pin opens the label on it, as on any point of the map: its name, and under it what
   // the pin is. on: the zone the pin was placed by, since where two maps overlap the point alone does not tell.
-  function labelPin(units: Point, title: string, notes: string[], on = zoneAt(maps, continent, units), dungeons?: { id: number; name: string; raid: boolean }[]): void {
+  function labelPin(units: Point, title: string, notes: string[], on = zoneAt(maps, continent, units), dungeons?: { id: number; name: string; raid: boolean }[], wing?: string): void {
     if (!map) return
     if (holder.clientWidth < 640) layersOpen = false // on a narrow map the menu would lie over the label
     labelled = {
@@ -594,6 +598,7 @@
       box: { width: holder.clientWidth, height: holder.clientHeight },
       pin: on ? { m: on.zone.id, ...on.place } : null,
       dungeons,
+      wing,
     }
   }
 
@@ -948,6 +953,9 @@
   // The doors of the dungeons and the flight routes of the character's side, from the game's own tables.
   let travel = $state.raw<Travel>({ doors: [], nodes: [], routes: [] })
   const travelLayers = { dungeons: L.layerGroup(), routes: L.layerGroup() }
+  // The maps behind a door the app has the rooms of: a button each on its label.
+  const behindDoor = (door: Travel['doors'][number]): { id: number; name: string; raid: boolean }[] =>
+    (door.maps ?? []).flatMap((id, i) => (interiors?.maps.some((m) => m.id === id) ? [{ id, name: door.names[i] ?? door.names[0]!, raid: door.raid === true }] : []))
   $effect(() => {
     for (const group of Object.values(travelLayers)) group.clearLayers()
     for (const door of travel.doors) {
@@ -955,9 +963,7 @@
       L.marker(at(door), { keyboard: false, zIndexOffset: 200, icon: doorIcon(door.raid === true) })
         .bindTooltip(door.names.join(', '), { direction: 'top', offset: [0, -13], className: 'tip' })
         .on('click', () => {
-          // The maps behind the door the app has the rooms of: a button each on the label.
-          const behind = (door.maps ?? []).flatMap((id, i) => (interiors?.maps.some((m) => m.id === id) ? [{ id, name: door.names[i] ?? door.names[0]!, raid: door.raid === true }] : []))
-          labelPin({ x: door.x, y: door.y }, door.names.join(', '), ['Entrance'], undefined, behind)
+          labelPin({ x: door.x, y: door.y }, door.names.join(', '), ['Entrance'], undefined, behindDoor(door))
         })
         .addTo(travelLayers.dungeons)
     }
@@ -1302,7 +1308,7 @@
       onremove={() => setPins(removePin(myPins, savedIndex))}
       onclose={() => (labelled = null)}
       dungeons={labelled.dungeons}
-      ondungeon={(id) => openDungeon(id)}
+      ondungeon={(id) => openDungeon(id, labelled?.wing)}
     />
   {/key}
 {/if}
