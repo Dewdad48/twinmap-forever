@@ -53,10 +53,11 @@ const STUB = `
     return other and other.class, other and other.class
   end
   -- The sheet, once GAME.surname is set (the full name is the key of a sheet). GAME.race and GAME.class as the game's tokens, GAME.money in copper,
-  -- GAME.bags[container] = { size = n, items = { [slot] = { item, count } } } (-1 and 6 to 12: the bank),
+  -- GAME.bags[container] = { size = n, items = { [slot] = { item, count } } } (6 to 12: the bank),
   -- GAME.worn[slot] = { item, durability, most }.
-  -- The numbers of the containers on Forever: four bags and the reagent bag, seven bags in the bank.
-  BACKPACK_CONTAINER, BANK_CONTAINER, KEYRING_CONTAINER, NUM_BAG_SLOTS, NUM_TOTAL_EQUIPPED_BAG_SLOTS, NUM_BANKBAGSLOTS = 0, -1, -2, 4, 5, 7
+  -- The numbers of the containers as Forever has them: four bags and the reagent bag, the keyring -1,
+  -- no BANK_CONTAINER nor NUM_BANKBAGSLOTS (the bank is 6, its bags after).
+  BACKPACK_CONTAINER, KEYRING_CONTAINER, NUM_BAG_SLOTS, NUM_TOTAL_EQUIPPED_BAG_SLOTS = 0, -1, 4, 5
   function UnitFullName(unit) if unit == "player" and GAME.surname then return "Catubbio", GAME.surname end end
   function UnitRace(unit) if unit == "player" then return GAME.race, GAME.race end end
   function GetMoney() return GAME.money end

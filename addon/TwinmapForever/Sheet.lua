@@ -15,13 +15,16 @@
 --   gear  { { slot, item, durability, most }, ... } durability missing for what does not wear
 local _, ns = ...
 
--- The containers by the game's own numbers, as Bagnon takes them: on Forever the bags go up to the
--- reagent bag (5), and the bank's bags come after it.
+-- The containers by the game's own numbers, as Bagnon takes them. On Forever (in the game, 17
+-- November 2026) the bags go up to the reagent bag (5), the keyring is -1, and the bank has no -1:
+-- it is 6, its bags 7 and after. Where the game still has a bank of its own number, it comes first.
 local WORN_BAGS = NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4
-local BAGS, BANK = {}, { BANK_CONTAINER or -1 }
+local BANK_BAGS = math.max(7, NUM_BANKBAGSLOTS or Constants and Constants.InventoryConstants and Constants.InventoryConstants.NumCharacterBankSlots or 0)
+local BAGS, BANK = {}, {}
 for bag = BACKPACK_CONTAINER or 0, WORN_BAGS do BAGS[#BAGS + 1] = bag end
 if KEYRING_CONTAINER then BAGS[#BAGS + 1] = KEYRING_CONTAINER end
-for bag = WORN_BAGS + 1, WORN_BAGS + (NUM_BANKBAGSLOTS or 6) do BANK[#BANK + 1] = bag end
+if BANK_CONTAINER and BANK_CONTAINER ~= KEYRING_CONTAINER then BANK[1] = BANK_CONTAINER end
+for bag = WORN_BAGS + 1, WORN_BAGS + BANK_BAGS do BANK[#BANK + 1] = bag end
 local WORN = 19 -- equipment slots, head to tabard
 
 local function Ok(ok, ...) if ok then return ... end end

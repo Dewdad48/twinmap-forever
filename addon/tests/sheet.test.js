@@ -9,7 +9,7 @@ const KEY = 'Catubbio Sucameli';
 
 // A gnome warlock with some money, a backpack, one bag, the reagent bag, a keyring and two things worn.
 const WORLD = `GAME.surname, GAME.level, GAME.race, GAME.class, GAME.money = "Sucameli", 24, "Gnome", "WARLOCK", 3440
-  GAME.bags = { [0] = { size = 16, items = { [1] = { 6948, 1 }, [3] = { 159, 5 } } }, [1] = { size = 6, items = {} }, [5] = { size = 12, items = { [2] = { 2447, 7 } } }, [-2] = { size = 4, items = { [1] = { 5396, 1 } } } }
+  GAME.bags = { [0] = { size = 16, items = { [1] = { 6948, 1 }, [3] = { 159, 5 } } }, [1] = { size = 6, items = {} }, [5] = { size = 12, items = { [2] = { 2447, 7 } } }, [-1] = { size = 32, items = { [1] = { 5396, 1 } } } }
   GAME.worn = { [1] = { 4245, 30, 35 }, [5] = { 6097 } }`;
 
 function enterWorld(before = WORLD) {
@@ -33,7 +33,7 @@ test('the whole sheet goes out at first, with who, money, bags with the reagent 
   assert.deepEqual(sent.p, {
     who: { name: KEY, race: 'Gnome', class: 'WARLOCK', level: 24 },
     money: 3440,
-    bags: [{ b: 0, n: 16, s: [[1, 6948, 1], [3, 159, 5]] }, { b: 1, n: 6, s: [] }, { b: 5, n: 12, s: [[2, 2447, 7]] }, { b: -2, n: 4, s: [[1, 5396, 1]] }],
+    bags: [{ b: 0, n: 16, s: [[1, 6948, 1], [3, 159, 5]] }, { b: 1, n: 6, s: [] }, { b: 5, n: 12, s: [[2, 2447, 7]] }, { b: -1, n: 32, s: [[1, 5396, 1]] }],
     gear: [[1, 4245, 30, 35], [5, 6097]],
   });
   assert.equal(sent.p.bank, undefined, 'the bank went out before it was ever open');
@@ -95,8 +95,8 @@ test('what changed while the app was closed reaches it when it opens, across a /
 
 test('the bank goes out once open, and stays as it was seen after it closes', () => {
   const addon = enterWorld(WORLD + `
-    GAME.bags[-1] = { size = 24, items = { [2] = { 2589, 20 } } }
-    GAME.bags[6] = { size = 8, items = {} }`);
+    GAME.bags[6] = { size = 48, items = { [2] = { 2589, 20 } } }
+    GAME.bags[7] = { size = 8, items = {} }`);
   addon.run(10);
   const first = sheets(addon).at(-1);
   assert.equal(first.p.bank, undefined);
@@ -104,11 +104,11 @@ test('the bank goes out once open, and stays as it was seen after it closes', ()
 
   addon.fire('BANKFRAME_OPENED');
   addon.run(4);
-  assert.deepEqual(sheets(addon).at(-1).p, { bank: [{ b: -1, n: 24, s: [[2, 2589, 20]] }, { b: 6, n: 8, s: [] }] });
+  assert.deepEqual(sheets(addon).at(-1).p, { bank: [{ b: 6, n: 48, s: [[2, 2589, 20]] }, { b: 7, n: 8, s: [] }] });
   addon.fire('BANKFRAME_CLOSED');
   appHolds(addon, first.code, sheets(addon).at(-1).rev);
   const count = sheets(addon).length;
-  addon.lua('GAME.bags[-1].items[2] = nil');
+  addon.lua('GAME.bags[6].items[2] = nil');
   addon.run(10);
   assert.equal(sheets(addon).length, count, 'the bank was read while closed');
 });
