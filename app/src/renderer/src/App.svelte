@@ -24,6 +24,9 @@
   import Map from './Map.svelte'
   import { drop, gone, opened, screen } from './motion'
   import Settings from './Settings.svelte'
+  import Picker from './Picker.svelte'
+  import { firstName, knownOf, shownOf } from '../../shared/characters'
+  import type { Sheets } from '../../shared/sheet'
 
   let link = $state<LinkSnapshot | null>(null)
   let now = $state(Date.now())
@@ -121,6 +124,22 @@
   const death = $derived(live ? deathFrom(link?.state.sections.dead, now - (link?.state.updatedAt.dead ?? 0)) : null)
   let back = $state.raw<(DeathPlace & { name: string; door: boolean }) | null>(null) // where the ghost walks to, as the map places it
   const xp = $derived(char ? experience(char) : null)
+  // The characters the app keeps a sheet of, and the one shown. Picking another changes what the app
+  // keeps of a character (bags, bank, spells), never the map, which is the one in game. A character
+  // coming into the game is shown again.
+  let sheets = $state.raw<Sheets>({})
+  window.twinmap.onSheets((all) => {
+    sheets = all
+  })
+  const inGame = $derived(live ? (char?.name ?? null) : null)
+  let picked = $state<string | null>(null)
+  let lastInGame: string | null = null
+  $effect(() => {
+    if (inGame && inGame !== lastInGame) picked = null
+    if (inGame) lastInGame = inGame
+  })
+  const characters = $derived(knownOf(sheets, inGame))
+  const shown = $derived(shownOf(characters, picked))
   const mapReady = $derived(tiles?.state === 'ready')
   const insideReady = $derived(tiles?.state === 'ready' && !!tiles.interiors && !tiles.interiors.problem)
   const count = (n: number): string => n.toLocaleString('en-US')
@@ -151,6 +170,9 @@
 
 <!-- The top row is the window's title bar too: it drags the window, a double click maximizes it. -->
 <header class="top">
+  {#if onSetup === false}
+    <Picker known={characters} {shown} {now} onpick={(key) => (picked = key)} onforget={(key) => void window.twinmap.forgetSheet(key)} />
+  {/if}
   {#if !onSetup}
     <nav aria-label="Sections">
       <button class="tab" aria-current={onSettings ? undefined : 'page'} onclick={() => (onSettings = false)}>Now</button>
@@ -232,6 +254,13 @@
 
   <aside class="panel surface" class:closed={!panelOpen} aria-label="Now" bind:clientHeight={panelHeight}>
     <button class="grip" aria-expanded={panelOpen} onclick={togglePanel}><Glyph name="menu" turn={panelOpen ? 0 : 180} />{panelOpen ? 'Close' : 'Quests and nearby'}</button>
+    {#if inGame && shown && !shown.live}
+      <!-- Another character than the one in game: said where its bags and spells will show, with the way back. -->
+      <p class="viewing" role="status">
+        <span>Showing <b style:color={shown.color}>{shown.key}</b></span>
+        <button class="btn back" onclick={() => (picked = null)}>Back to {firstName(inGame)}</button>
+      </p>
+    {/if}
     <Now
       {pos}
       {quests}
@@ -585,7 +614,32 @@
       -4px 0 0 #000,
       0 -10px 24px #000a;
   }
+  /* Another character shown: a band of the blue of what is on, along the top of the panel. */
+  .viewing {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 7px 12px 7px 16px;
+    background: linear-gradient(var(--disc-low), #072a40);
+    box-shadow:
+      inset 0 -1px 0 #000,
+      inset 0 1px 0 #ffffff1f;
+    font: var(--t-small);
+  }
+  .viewing b {
+    font-weight: 600;
+  }
+  .viewing .back {
+    margin-left: auto;
+    padding: 0 10px;
+    height: 24px;
+    font: 400 13px/20px var(--display);
+    white-space: nowrap;
+  }
   /* Closed: the next stop, as a sign reads it, and nothing to press but the way to open. */
+  .panel.closed .viewing,
   .panel.closed footer,
   .panel.closed :global(.now > :not(.plate, .none)),
   .panel.closed :global(.plate > :not(h2, .sign, .sheen)) {

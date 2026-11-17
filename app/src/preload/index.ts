@@ -1,10 +1,11 @@
-// The door between the window and the main process. The window listens; it can ask for nine things
-// only: to pick the game folder, to open the addon's page on CurseForge, to build the map again after a
+// The door between the window and the main process. The window listens; it can ask for ten things
+// only: to forget a character, to pick the game folder, to open the addon's page on CurseForge, to build the map again after a
 // failure, to stay over other windows, to show the map on the home network, to search the player's QuestieDB, to mark a point in the
 // game, to send it a route, and to step ahead on that route. It says one: that its opening screen is drawn.
 import { contextBridge, ipcRenderer } from 'electron'
 import type { FeedbackSent, FeedbackWay } from '../shared/feedback'
 import type { Kept, KeptKey } from '../shared/kept'
+import type { Sheets } from '../shared/sheet'
 import type { LinkSnapshot } from '../shared/link'
 import type { Updating } from '../main/update'
 import type { QuestsStatus } from '../shared/quests'
@@ -30,6 +31,12 @@ contextBridge.exposeInMainWorld('twinmap', {
     ipcRenderer.on('kept', (_event, kept: Kept) => listener(kept))
   },
   keep: (key: KeptKey, value: unknown): Promise<void> => ipcRenderer.invoke('keep', key, value),
+  // The sheets of the characters the app has seen, for the picker: told at load and at every change.
+  onSheets: (listener: (sheets: Sheets) => void) => {
+    ipcRenderer.on('sheets', (_event, sheets: Sheets) => listener(sheets))
+  },
+  // Takes a character off the list.
+  forgetSheet: (key: string): Promise<void> => ipcRenderer.invoke('forget-sheet', key),
   onQuests: (listener: (status: QuestsStatus) => void) => {
     ipcRenderer.on('quests', (_event, status: QuestsStatus) => listener(status))
   },

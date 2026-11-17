@@ -16,6 +16,8 @@ declare global {
       onQuests: (listener: (status: QuestsStatus) => void) => void
       onKept: (listener: (kept: import('../../shared/kept').Kept) => void) => void
       keep: (key: import('../../shared/kept').KeptKey, value: unknown) => Promise<void>
+      onSheets: (listener: (sheets: import('../../shared/sheet').Sheets) => void) => void
+      forgetSheet: (key: string) => Promise<void>
       onUpdate: (listener: (updating: import('../../main/update').Updating) => void) => void
       chooseGameFolder: () => Promise<string | null>
       openCurseForge: (addon?: import('../../shared/setup').Optional) => Promise<void>
