@@ -25,6 +25,7 @@
   import { drop, gone, opened, screen } from './motion'
   import Settings from './Settings.svelte'
   import Picker from './Picker.svelte'
+  import Items from './Items.svelte'
   import { firstName, knownOf, shownOf } from '../../shared/characters'
   import type { Sheets } from '../../shared/sheet'
 
@@ -65,6 +66,8 @@
   let onSetup = $state<boolean | null>(null)
   // Settings lie over the map, which stays as it was underneath.
   let onSettings = $state(false)
+  // Items lies over the map as Settings does, as wide as the window.
+  let onItems = $state(false)
   // Feedback is a small window over whatever is on show.
   let onFeedback = $state(false)
   window.twinmap.onSetup((told) => {
@@ -175,11 +178,12 @@
   {/if}
   {#if !onSetup}
     <nav aria-label="Sections">
-      <button class="tab" aria-current={onSettings ? undefined : 'page'} onclick={() => (onSettings = false)}>Now</button>
+      <button class="tab" aria-current={onSettings || onItems ? undefined : 'page'} onclick={() => ((onSettings = false), (onItems = false))}>Now</button>
+      <button class="tab" aria-current={onItems && !onSettings ? 'page' : undefined} onclick={() => ((onSettings = false), (onItems = true))}>Items</button>
     </nav>
   {/if}
   {#if onSetup === false && !onSettings && mapReady}
-    <Search ready={mapReady} {pos} side={char?.side} onpick={(place) => mapView?.goTo(place)} />
+    <Search ready={mapReady} {pos} side={char?.side} onpick={(place) => ((onItems = false), mapView?.goTo(place))} />
   {/if}
   {#if status}
     <p class="status" class:alone={onSetup !== false || onSettings || !mapReady}><i class={status.tone} title={status.word}></i><span class="word">{status.word}</span>{#if inbox && !inbox.off && inbox.id === undefined}<span class="left" class:low={inbox.left < 5}>{inbox.left} sends left</span>{/if}</p>
@@ -214,8 +218,13 @@
     <Settings {setup} {tiles} link={status} onback={() => (onSettings = false)} onfeedback={() => (onFeedback = true)} onfirstrun={() => ((onSettings = false), (onSetup = true))} />
   </div>
 {/if}
+{#if onItems && onSetup === false && !onSettings}
+  <div class="over" in:fade={screen} out:fade={gone}>
+    <Items {sheets} {shown} known={characters} {now} onpick={(key) => (picked = key)} />
+  </div>
+{/if}
 {#if onSetup === false}
-<div class="work" class:shut={!panelOpen} in:fade={screen} inert={onSettings} style:--peek="{peek}px">
+<div class="work" class:shut={!panelOpen} in:fade={screen} inert={onSettings || onItems} style:--peek="{peek}px">
   <div class="mapbox">
     {#if mapReady}
       <Map {pos} {group} {death} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {route} onroute={(stop) => setRoute(addStop(route, stop))} />
