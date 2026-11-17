@@ -38,7 +38,7 @@
 
   // at: when the position was read off the game, in milliseconds.
   // insideReady: the rooms of the buildings are converted, and their list can be asked for.
-  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, route = noRoute(), onroute, kills, death = null, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; group?: Companion[] } = $props()
+  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, route = noRoute(), onroute, onnpc, kills, death = null, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; onnpc?: (pin: FixedPin | null) => void; group?: Companion[] } = $props()
 
   const TOP_ZOOM = 7 // the game's own detail: a block's picture is four tiles
   const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='
@@ -78,7 +78,10 @@
   let layersOpen = $state(false)
   // The point the player clicked, with its label: in map units, and where that is in the map's box now.
   // pin: the same point as the game names it, a zone map and a place on it; none where no zone is.
-  let labelled = $state<{ units: Point; continent: Continent; title: string; where: string; spot: Point; box: Size; pin: { m: number; x: number; y: number } | null; plain?: boolean; notes?: string[]; dungeons?: { id: number; name: string; raid: boolean }[]; wing?: string; item?: number } | null>(null)
+  let labelled = $state<{ units: Point; continent: Continent; title: string; where: string; spot: Point; box: Size; pin: { m: number; x: number; y: number } | null; plain?: boolean; notes?: string[]; dungeons?: { id: number; name: string; raid: boolean }[]; wing?: string; item?: number; npc?: FixedPin } | null>(null)
+  // A vendor or a trainer labelled: its panel opens at the top of the side panel (NpcPanel.svelte).
+  const labelledNpc = $derived(labelled?.npc ?? null)
+  $effect(() => onnpc?.(labelledNpc))
   // Where the character is on the world map, for the distance on the label.
   let me = $state<{ units: Point; continent: Continent } | null>(null)
   // The yards and the time are those of the way on foot, where one is found: asked for the one point, again every few dozen yards.
@@ -582,6 +585,9 @@
       pin: found ? { m: found.zone.id, ...found.place } : null,
       ...(to.item && { item: to.item }), // an item found: its picture beside the name
     }
+    // A vendor or a trainer found: its panel opens as for a click on its pin.
+    const target = at(to.at), npc = laid.find((l) => l.pin.npc && l.pin.name === to.title && view.distance(target, l.at) < 1)?.pin
+    if (npc) labelled.npc = { ...npc }
   }
 
   // A click on a pin opens the label on it, as on any point of the map: its name, and under it what
@@ -935,7 +941,10 @@
             },
             { direction: 'top', offset: [0, -9], className: 'tip' },
           )
-          .on('click', () => labelPin({ x: where.lng, y: -where.lat }, p.name, [...(p.sub ? [p.sub] : []), p.layers.map((layer) => LAYER_NAMES[layer]).join(', ')], { zone, place: { x: p.x, y: p.y } }))
+          .on('click', () => {
+            labelPin({ x: where.lng, y: -where.lat }, p.name, [...(p.sub ? [p.sub] : []), p.layers.map((layer) => LAYER_NAMES[layer]).join(', ')], { zone, place: { x: p.x, y: p.y } })
+            if (labelled && p.npc) labelled.npc = { ...p }
+          })
           .addTo(fixedGroup)
       }
     }

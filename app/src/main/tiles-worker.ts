@@ -16,7 +16,7 @@ import { convertInteriors, ENCOUNTERS_FILE, finishedInteriors, INTERIORS_FILE, M
 import { sentKeys } from './keys'
 import { convertHeights, heightsDone } from './heights'
 import { ICONS_MADE, writeIcons } from './icons'
-import { itemIcons } from './item-icons'
+import { gamePictures, itemIcons } from './item-icons'
 import { convertWorld, dropOtherBuilds, finished, ICONS_FOLDER, MAPS_FILE, PLACES_FILE, tilesFolder, TRAVEL_FILE } from './tiles'
 
 const { gameFolder, base } = workerData as { gameFolder: string; base: string }
@@ -48,11 +48,11 @@ try {
   // and a few hundred megabytes, and on most starts the tiles are already there.
   let client: ClientFiles | undefined
   const open = (): ClientFiles => (client ??= openClientFiles(gameFolder, keys))
-  // The picture of an item, when a screen asks for one the folder does not have yet (item-icons.ts).
+  // The picture of an item, or of a spell by its file, when a screen asks for one the folder does not have yet (item-icons.ts).
   // Asked while the map is being made, it is answered once the making is done.
-  const itemIcon = itemIcons(open, folder)
-  parentPort?.on('message', (asked: { item?: unknown }) => {
-    if (typeof asked.item === 'number') parentPort?.postMessage({ item: asked.item, made: itemIcon(asked.item) })
+  const makers = { items: itemIcons(open, folder), pictures: gamePictures(open, folder) }
+  parentPort?.on('message', (asked: { kind?: unknown; id?: unknown }) => {
+    if ((asked.kind === 'items' || asked.kind === 'pictures') && typeof asked.id === 'number') parentPort?.postMessage({ asked: `${asked.kind}/${asked.id}`, made: makers[asked.kind](asked.id) })
   })
   const table = (b: Buffer) => readTable(b, (keyName) => open().opens(keyName))
   const progress = (percent: number): void => {

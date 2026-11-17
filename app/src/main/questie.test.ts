@@ -115,12 +115,15 @@ test('who offers a service is pinned where they stand, and so are ore and herbs'
     `## X-Object-901-${OBJECT.spawns}: ${b64({ 12: [[30, 30], [31, 32]] })}`,
     `## X-Object-902-S: ${b64({ [OBJECT.name]: 'Peacebloom' })}`,
     `## X-Object-902-${OBJECT.spawns}: ${b64({ 40: [[70, 70]] })}`,
+    `## X-Item-60-S: ${b64({ [ITEM.name]: 'Copper Shortsword' })}`,
+    `## X-Item-60-${ITEM.vendors}: ${b64([105])}`,
   ]))!
+  // A vendor or a trainer carries its number for its panel, and a vendor what it sells.
   expect(fixedPins(db)).toEqual([
     // Miller Odo sells (flags 4) in the two zones he stands in; the place inside an instance is left out.
-    { area: 12, x: 42.5, y: 65.25, name: 'Miller Odo', layers: ['vendors'], side: 'A' },
-    { area: 40, x: 10, y: 20, name: 'Miller Odo', layers: ['vendors'], side: 'A' },
-    { area: 40, x: 55, y: 45, name: 'Smith Hale', sub: 'Armorer', layers: ['vendors', 'repair'], side: 'AH' },
+    { area: 12, x: 42.5, y: 65.25, name: 'Miller Odo', layers: ['vendors'], side: 'A', npc: 101 },
+    { area: 40, x: 10, y: 20, name: 'Miller Odo', layers: ['vendors'], side: 'A', npc: 101 },
+    { area: 40, x: 55, y: 45, name: 'Smith Hale', sub: 'Armorer', layers: ['vendors', 'repair'], side: 'AH', npc: 105, sells: [60] },
     { area: 12, x: 30, y: 30, name: 'Copper Vein', layers: ['ore'] },
     { area: 12, x: 31, y: 32, name: 'Copper Vein', layers: ['ore'] },
     { area: 40, x: 70, y: 70, name: 'Peacebloom', layers: ['herbs'] },

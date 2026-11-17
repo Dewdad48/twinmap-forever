@@ -13,15 +13,17 @@ import { readTable, type Table } from './wdc5'
 
 export const TRAINERS_FILE = 'trainers.json'
 /** A file of another format was made by another app: made again. */
-export const TRAINERS_FORMAT = 2
+export const TRAINERS_FORMAT = 3
 
 const SKILL_LINE_ABILITY = 1266278, SPELL_LEVELS = 1140079, SPELL_NAME = 1990283, SPELL = 1140089, SPELL_MISC = 1003144
-const SKILL_RACE_CLASS = 1240406, TALENT = 1369062
+const SKILL_RACE_CLASS = 1240406, TALENT = 1369062, SPELL_EFFECT = 1140088
 // SkillLineAbility: skill line, spell, classes, how it is learned (0 at a trainer), races; SpellLevels: the level;
 // SkillRaceClassInfo: the classes of a line and its flags (2: a pet's, as Beast Training); Talent: the spells of each rank;
 // Spell: the rank ("Rank 2", "Passive"); SpellMisc: the picture.
 const SLA_LINE = 3, SLA_SPELL = 4, SLA_CLASSES = 6, SLA_HOW = 8, SLA_RACES = 17, LEVEL = 4
 const SRC_CLASSES = 1, SRC_FLAGS = 2, PET_LINE = 2, TALENT_RANKS = 11, RANK = 0, ICON = 10
+// SpellEffect, by spell: what the effect does (24: makes an item) and the item.
+const EFFECT_KIND = 3, EFFECT_ITEM = 10, MAKES_ITEM = 24
 
 /** The class's number in the game by its token. */
 export const CLASS_IDS: Record<string, number> = { WARRIOR: 1, PALADIN: 2, HUNTER: 3, ROGUE: 4, PRIEST: 5, SHAMAN: 7, MAGE: 8, WARLOCK: 9, DRUID: 11 }
@@ -35,6 +37,8 @@ export interface TrainerFacts {
   classes: Record<string, ClassSpell[]>
   /** Name and picture of the recipes and ranks the profession trainers teach. */
   spells: Record<string, [string, number]>
+  /** The item each spell of `spells` makes, if it makes one: a recipe's picture and quality are its item's. */
+  makes: Record<string, number>
 }
 
 type Files = { read(id: number, skipHidden?: boolean): Buffer | null; opens(keyName: string): boolean }
@@ -46,10 +50,10 @@ export function trainerFacts(files: Files): TrainerFacts | null {
     const b = files.read(id, true)
     return b && readTable(b, opens, texts)
   }
-  const [sla, levels, names, spell, misc, lineClasses, talents] = [
-    read(SKILL_LINE_ABILITY), read(SPELL_LEVELS), read(SPELL_NAME), read(SPELL, [0, 1, 2]), read(SPELL_MISC), read(SKILL_RACE_CLASS), read(TALENT),
+  const [sla, levels, names, spell, misc, lineClasses, talents, effects] = [
+    read(SKILL_LINE_ABILITY), read(SPELL_LEVELS), read(SPELL_NAME), read(SPELL, [0, 1, 2]), read(SPELL_MISC), read(SKILL_RACE_CLASS), read(TALENT), read(SPELL_EFFECT),
   ]
-  if (!sla || !levels || !names || !spell || !misc || !lineClasses || !talents) return null
+  if (!sla || !levels || !names || !spell || !misc || !lineClasses || !talents || !effects) return null
   const name = new Map(names.rows.map((r) => [r.id, r.text(0)]))
   const rank = new Map(spell.rows.map((r) => [r.id, r.text(RANK)]))
   const level = new Map(levels.rows.map((r) => [r.parent, r.int(LEVEL)]))
@@ -84,7 +88,9 @@ export function trainerFacts(files: Files): TrainerFacts | null {
   for (const list of Object.values(classes)) list.sort((a, b) => a[1] - b[1] || a[2].localeCompare(b[2]) || a[3] - b[3])
 
   for (const p of Object.values(PROFESSION_TRAINERS)) for (const id of [...p.ranks.map((r) => r[1]), ...p.teach.flatMap((t) => t[1])]) named(id)
-  return { format: TRAINERS_FORMAT, classes, spells }
+  const makes: TrainerFacts['makes'] = {}
+  for (const r of effects.rows) if (r.parent !== undefined && spells[r.parent] && r.int(EFFECT_KIND) === MAKES_ITEM && r.int(EFFECT_ITEM) > 0) makes[r.parent] ??= r.int(EFFECT_ITEM)
+  return { format: TRAINERS_FORMAT, classes, spells, makes }
 }
 
 /** By profession: its skill line, its ranks (name, spell, most skill, cost, skill needed, level needed), which

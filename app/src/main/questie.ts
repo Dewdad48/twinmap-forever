@@ -302,12 +302,14 @@ export function fixedPins(db: Questie): FixedPin[] {
   const add = (kind: 'Npc' | 'Object', id: number, pin: Omit<FixedPin, 'area' | 'x' | 'y'>): void => {
     for (const [area, spots] of Object.entries(db.places(kind, id))) for (const [x, y] of spots) pins.push({ area: +area, x, y, ...pin })
   }
+  const sold = shops(db)
   for (const id of db.ids.Npc) {
     const flags = db.get('Npc', id, NPC.flags), side = db.get('Npc', id, NPC.friendly), name = db.get('Npc', id, NPC.name), sub = db.get('Npc', id, NPC.sub)
     const layers = typeof flags === 'number' ? servicesOf(flags) : []
     // Someone friendly to no side serves no player.
     if (!layers.length || typeof side !== 'string' || !side || typeof name !== 'string') continue
-    add('Npc', id, { name, ...(typeof sub === 'string' && sub ? { sub } : {}), layers, side })
+    const panel = layers.includes('vendors') || layers.includes('trainers')
+    add('Npc', id, { name, ...(typeof sub === 'string' && sub ? { sub } : {}), layers, side, ...(panel && { npc: id }), ...(sold.has(id) && { sells: sold.get(id) }) })
   }
   for (const id of db.ids.Object) {
     const name = db.get('Object', id, OBJECT.name), layer = typeof name === 'string' ? resourceOf(name) : null

@@ -15,6 +15,7 @@ const FACTS: TrainerFacts = {
     ],
   },
   spells: { 4037: ['Journeyman', 136243], 3922: ['Handful of Copper Bolts', 133588], 3958: ['Iron Strut', 133608] },
+  makes: { 3922: 4359 },
 }
 const NONE = trainerReads({})
 const sheet = (trainers: TrainerRead[], at: number): Sheet => ({ code: 'c', rev: 1, pieces: { trainers }, at: { trainers: at } })
@@ -100,4 +101,6 @@ test.skipIf(!real)("the real game lists the warlock's spells by level, and Sprin
   expect(engineering.rows.find((r) => r.name === 'Arclight Spanner')).toMatchObject({ skill: 50, cost: 150 })
   // Shown in game by Briarthorn and Springspindle, on 17 November 2026, though in neither list: their names still come.
   expect([17962, 1230656, 1249634].map((s) => facts.spells[s]?.[0])).toEqual(['Conflagrate', 'Reagent Bot', 'Sandpaper'])
+  // A recipe makes its item: Copper Tube.
+  expect(facts.makes[3924]).toBe(4361)
 }, 60_000)
