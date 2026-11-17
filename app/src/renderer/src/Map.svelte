@@ -751,8 +751,10 @@
       for (const n of named) n.sizes = {}
       layout()
     })
-    // A click on the world map puts the label on that point. Inside a dungeon there is nothing to say of a point yet.
+    // A click on the world map puts the label on that point; with a label open, it only closes it. Inside a dungeon
+    // there is nothing to say of a point yet.
     made.on('click', (e) => {
+      if (labelled) return void (labelled = null)
       if (inside) return
       if (holder.clientWidth < 640) layersOpen = false // on a narrow map the menu would lie over the label
       const units = { x: e.latlng.lng, y: -e.latlng.lat }, found = zoneAt(maps, continent, units)
