@@ -69,6 +69,35 @@ const STUB = `
       if it then return { itemID = it[1], stackCount = it[2] } end
     end,
   }
+  -- Skills, spells, talents and recipes, as Forever has them. GAME.skills = { { skill, rank, most, header } },
+  -- GAME.spells = { { spell, notYet } }, GAME.talents = { [node] = { rank, spell } } with GAME.free points,
+  -- GAME.trade = { profession = n, recipes = { [spell] = learned }, linked = true }: the window of a profession.
+  Enum = { SpellBookSpellBank = { Player = 0 }, SpellBookItemType = { Spell = 1, FutureSpell = 2 } }
+  C_SkillInfo = {
+    GetNumSkillLines = function() return GAME.skills and #GAME.skills or 0 end,
+    GetSkillLineInfo = function(i) local l = GAME.skills[i] return l and { skillID = l[1], rank = l[2], maxRank = l[3], isHeader = l[4] == true } end,
+  }
+  C_SpellBook = {
+    GetNumSpellBookSkillLines = function() return GAME.spells and 1 or 0 end,
+    GetSpellBookSkillLineInfo = function() return { itemIndexOffset = 0, numSpellBookItems = #GAME.spells } end,
+    GetSpellBookItemInfo = function(i) local sp = GAME.spells[i] return sp and { spellID = sp[1], itemType = sp[2] and 2 or 1 } end,
+  }
+  C_ClassTalents = { GetActiveConfigID = function() return GAME.talents and 7 end }
+  C_Traits = {
+    GetConfigInfo = function() return { treeIDs = { 1 } } end,
+    GetTreeNodes = function() local out = {} for node in pairs(GAME.talents) do out[#out + 1] = node end table.sort(out) return out end,
+    GetNodeInfo = function(_, node) return { currentRank = GAME.talents[node][1], entryIDs = { node * 10 } } end,
+    GetEntryInfo = function(_, entry) return { definitionID = entry } end,
+    GetDefinitionInfo = function(definition) local t = GAME.talents[definition // 10] return { spellID = t and t[2] } end,
+    GetTreeCurrencyInfo = function() return { { quantity = GAME.free or 0 } } end,
+  }
+  function UnitCharacterPoints() return 0 end
+  C_TradeSkillUI = {
+    GetAllRecipeIDs = function() local out = {} for id in pairs(GAME.trade and GAME.trade.recipes or {}) do out[#out + 1] = id end table.sort(out) return out end,
+    GetRecipeInfo = function(id) return { learned = GAME.trade.recipes[id] } end,
+    IsTradeSkillLinked = function() return GAME.trade and GAME.trade.linked == true end,
+    GetBaseProfessionInfo = function() return { professionID = GAME.trade and GAME.trade.profession } end,
+  }
   function GetInventoryItemID(_, slot) local w = GAME.worn and GAME.worn[slot] return w and w[1] end
   function GetInventoryItemDurability(slot) local w = GAME.worn and GAME.worn[slot] if w then return w[2], w[3] end end
   function UnitGroupRolesAssigned(unit)
