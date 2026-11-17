@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
@@ -15,13 +15,16 @@ test('an item picture is served from the folder of the build, and nothing else i
   expect(servedFile('/b', '/items/12345678.png')).toBeNull()
 })
 
-// Water, linen cloth, the hearthstone, and an item of Forever's own.
+// Water, linen cloth, the hearthstone, an item of Forever's own, and boots with their picture only on their look (ItemAppearance).
 test.skipIf(!real)('the real game gives the pictures of items once; then they come from the folder, without the game', () => {
   const folder = mkdtempSync(join(tmpdir(), 'twinmap-items-'))
+  // The boots were marked missing by an app that did not look at the appearances: they are looked for again.
+  mkdirSync(join(folder, 'items'), { recursive: true })
+  writeFileSync(join(folder, 'items', '277218.none'), '')
   let opened = 0
   let files: ClientFiles | undefined
   const make = itemIcons(() => (opened++, (files ??= openClientFiles(real!))), folder)
-  for (const item of [159, 2589, 6948, 255716]) {
+  for (const item of [159, 2589, 6948, 255716, 277218]) {
     expect(make(item), `item ${item}`).toBe(true)
     expect(readFileSync(itemIconFile(folder, item)).subarray(0, 4).toString('hex')).toBe(PNG)
   }
@@ -32,7 +35,7 @@ test.skipIf(!real)('the real game gives the pictures of items once; then they co
   const again = itemIcons(() => {
     throw new Error('the game was opened again')
   }, folder)
-  for (const item of [159, 2589, 6948, 255716]) expect(again(item)).toBe(true)
+  for (const item of [159, 2589, 6948, 255716, 277218]) expect(again(item)).toBe(true)
   expect(again(1)).toBe(false)
   expect(opened).toBeGreaterThan(0)
 })
