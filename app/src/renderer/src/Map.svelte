@@ -27,7 +27,7 @@
   import { drop, gone, still } from './motion'
   import PointLabel from './PointLabel.svelte'
   import { inRoute, noRoute, type Route, type Stop } from '../../shared/route'
-  import type { Journey, WayLeg } from '../../shared/journey'
+  import { legsOn, type Journey, type WayLeg } from '../../shared/journey'
   import { ahead as restOf } from '../../shared/walk'
   import { deathPlaces, type Death, type Place as DeathPlace } from '../../shared/death'
   import { feet } from './feet.svelte'
@@ -38,7 +38,7 @@
 
   // at: when the position was read off the game, in milliseconds.
   // insideReady: the rooms of the buildings are converted, and their list can be asked for.
-  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, ahead = null, route = noRoute(), onroute, kills, death = null, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; ahead?: WayLeg[] | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; group?: Companion[] } = $props()
+  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, route = noRoute(), onroute, kills, death = null, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; group?: Companion[] } = $props()
 
   const TOP_ZOOM = 7 // the game's own detail: a block's picture is four tiles
   const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='
@@ -1054,10 +1054,11 @@
   // The journey Shortest Path guides in the game: a ring on its goal, and the way there. A walk is a
   // dashed gold line, found here on the same grid (main/walk.ts): from the character to where the
   // walk ends, again when that changes or the character leaves it, and shortened as the character
-  // walks. The game's API tells no points: where the addon could read the legs off Shortest Path's
-  // own line (ahead), every leg is drawn, a flight or a boat in its own colour through its points;
-  // otherwise only a journey that is all on foot has a line, to its goal.
+  // walks. Where Shortest Path tells where every leg starts and ends (ahead), every leg is drawn, a
+  // flight or a boat in its own colour from end to end; otherwise only a journey that is all on foot
+  // has a line, to its goal.
   const OFF_THE_WAY = 40 // yards
+  const ahead = $derived(legsOn(journey, maps))
   const ASK_EVERY = 2000 // ms between two askings at least
   const journeyGoal = $derived.by(() => {
     if (!journey || journey.loading || !journey.goal) return null
