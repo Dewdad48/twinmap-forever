@@ -98,4 +98,6 @@ test.skipIf(!real)("the real game lists the warlock's spells by level, and Sprin
   expect(engineering.rows).toHaveLength(49)
   expect(engineering.rows.every((r) => !r.name.startsWith('Spell ') && r.cost !== null)).toBe(true)
   expect(engineering.rows.find((r) => r.name === 'Arclight Spanner')).toMatchObject({ skill: 50, cost: 150 })
+  // Shown in game by Briarthorn and Springspindle, on 17 November 2026, though in neither list: their names still come.
+  expect([17962, 1230656, 1249634].map((s) => facts.spells[s]?.[0])).toEqual(['Conflagrate', 'Reagent Bot', 'Sandpaper'])
 }, 60_000)

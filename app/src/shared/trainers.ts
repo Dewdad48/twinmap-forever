@@ -13,7 +13,7 @@ import { readTable, type Table } from './wdc5'
 
 export const TRAINERS_FILE = 'trainers.json'
 /** A file of another format was made by another app: made again. */
-export const TRAINERS_FORMAT = 1
+export const TRAINERS_FORMAT = 2
 
 const SKILL_LINE_ABILITY = 1266278, SPELL_LEVELS = 1140079, SPELL_NAME = 1990283, SPELL = 1140089, SPELL_MISC = 1003144
 const SKILL_RACE_CLASS = 1240406, TALENT = 1369062
@@ -64,9 +64,16 @@ export function trainerFacts(files: Files): TrainerFacts | null {
     if (r.parent !== undefined && id && !(r.int(SRC_FLAGS) & PET_LINE)) classOfLine.set(r.parent, id)
   }
 
-  const classes: TrainerFacts['classes'] = {}
+  const classes: TrainerFacts['classes'] = {}, spells: TrainerFacts['spells'] = {}
+  const named = (id: number): void => {
+    const n = name.get(id)
+    if (n) spells[id] = [n, icon.get(id) ?? 0]
+  }
+  const professionLines = new Set(Object.values(PROFESSION_TRAINERS).map((p) => p.skill))
   for (const r of sla.rows) {
     const cls = classOfLine.get(r.int(SLA_LINE)), id = r.int(SLA_SPELL), mask = r.int(SLA_CLASSES)
+    // A name for every spell a trainer may show, also those left out of the lists below (a talent's rank, a recipe new on Forever).
+    if (r.int(SLA_HOW) === 0 && (cls || professionLines.has(r.int(SLA_LINE)))) named(id)
     if (!cls || (mask !== 0 && !(mask & (1 << (cls - 1)))) || r.int(SLA_HOW) !== 0 || talent.has(id)) continue
     const n = name.get(id), lv = level.get(id), sub = rank.get(id) ?? ''
     // What comes with another spell or with a form is no trainer's: passives and effects.
@@ -76,12 +83,7 @@ export function trainerFacts(files: Files): TrainerFacts | null {
   }
   for (const list of Object.values(classes)) list.sort((a, b) => a[1] - b[1] || a[2].localeCompare(b[2]) || a[3] - b[3])
 
-  const spells: TrainerFacts['spells'] = {}
-  for (const p of Object.values(PROFESSION_TRAINERS))
-    for (const id of [...p.ranks.map((r) => r[1]), ...p.teach.flatMap((t) => t[1])]) {
-      const n = name.get(id)
-      if (n) spells[id] = [n, icon.get(id) ?? 0]
-    }
+  for (const p of Object.values(PROFESSION_TRAINERS)) for (const id of [...p.ranks.map((r) => r[1]), ...p.teach.flatMap((t) => t[1])]) named(id)
   return { format: TRAINERS_FORMAT, classes, spells }
 }
 
@@ -157,7 +159,7 @@ export function classTrainer(npc: number, cls: string, facts: TrainerFacts, read
   return seen.s
     .map((l) => {
       const s = byId.get(l[0])
-      return s ? row(s) : { spell: l[0], name: `Spell ${l[0]}`, rank: 0, level: l[2], skill: 0, cost: l[1], talent: false, races: 0, icon: 0 }
+      return s ? row(s) : { spell: l[0], name: facts.spells[l[0]]?.[0] ?? `Spell ${l[0]}`, rank: 0, level: l[2], skill: 0, cost: l[1], talent: false, races: 0, icon: facts.spells[l[0]]?.[1] ?? 0 }
     })
     .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name) || a.rank - b.rank)
 }
