@@ -1,7 +1,7 @@
 <script lang="ts">
   // The search of the top row: zones from the game's own maps, NPCs, quests and items from the
   // player's QuestieDB, dungeons and raids from the doors of the world map, and My pins. The results open under
-  // the field; one chosen takes the map to its place, or a dungeon's to its own map.
+  // the field; one chosen takes the map to its place and opens its label there, a dungeon's on its door.
   import { TILES } from './web'
   import { unitsOfPlace, type Point } from '../../shared/geo'
   import type { Continent, GameMap } from '../../shared/maps'
