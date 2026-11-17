@@ -36,7 +36,6 @@
     inGame,
     journey, // the journey Shortest Path guides in the game, whoever started it
     back, // dead: where to walk to live again, the corpse or the door of the dungeon it lies in
-    wayKnown, // its legs are known with their points: the map draws all of it
     onpick,
     onpoint,
     onsent,
@@ -60,7 +59,6 @@
     inGame: boolean
     journey: Journey | null
     back: (Place & { name: string; door: boolean }) | null
-    wayKnown: boolean
     onsent: (t: number) => void
     onarrive: () => void
     onend: () => void
@@ -234,10 +232,6 @@
         {#each journey.legs as leg, i (i)}
           <div class="row"><span>{leg.text}</span><span class="num">{span(leg.seconds)}</span></div>
         {/each}
-        <!-- Only the walks can be found here: a flight or a boat is drawn once the game has shown where it goes. -->
-        {#if !wayKnown && journey.legs.some((leg) => leg.mode !== 'walk')}
-          <div class="row hint"><span>Open the game's map once to see the whole way here</span></div>
-        {/if}
       {/if}
     </div>{/if}
   {/if}
@@ -290,9 +284,6 @@
   .legs .row > :last-child:not(:first-child) {
     color: var(--text-dim);
     white-space: nowrap;
-  }
-  .legs .hint {
-    color: var(--text-dim);
   }
   .attention img {
     height: 16px;
