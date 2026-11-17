@@ -38,6 +38,7 @@ test('the whole sheet goes out at first, with who, money, bags with the reagent 
     skills: [],
     spells: [],
     recipes: { known: [], seen: [] },
+    trainers: [],
   });
   assert.equal(sent.p.bank, undefined, 'the bank went out before it was ever open');
 });
@@ -124,14 +125,14 @@ test('an app that holds another sheet gets this one whole; an app ahead of it ge
   appHolds(addon, 'deadbeef', 50);
   addon.lua('GAME.money = 1');
   addon.run(4);
-  assert.deepEqual(Object.keys(sheets(addon).at(-1).p).sort(), ['bags', 'gear', 'money', 'recipes', 'skills', 'spells', 'who']);
+  assert.deepEqual(Object.keys(sheets(addon).at(-1).p).sort(), ['bags', 'gear', 'money', 'recipes', 'skills', 'spells', 'trainers', 'who']);
 
   appHolds(addon, first.code, 50);
   addon.run(4);
   const again = sheets(addon).at(-1);
   assert.equal(again.code, first.code);
   assert.ok(again.rev > 50, `revision ${again.rev}`);
-  assert.deepEqual(Object.keys(again.p).sort(), ['bags', 'gear', 'money', 'recipes', 'skills', 'spells', 'who']);
+  assert.deepEqual(Object.keys(again.p).sort(), ['bags', 'gear', 'money', 'recipes', 'skills', 'spells', 'trainers', 'who']);
 });
 
 test('in a fight the sheet waits', () => {
@@ -222,4 +223,65 @@ test("a recipe the window has not loaded yet, or a window of someone else's reci
   addon.fire('TRADE_SKILL_LIST_UPDATE');
   addon.run(4);
   assert.deepEqual(sheets(addon).at(-1).p, { recipes: { known: [3930], seen: [202] } });
+});
+
+// Springspindle Fizzlegear: a rank, two recipes learned already or not yet within reach (hidden by the window), a header.
+const SPRINGSPINDLE = `GAME.trainer = { npc = 5174, trade = true, lines = {
+  { "Engineering", "header" },
+  { "Expert Engineer", "available", 4038, 4500, 20, 125, "available" },
+  { "Iron Strut", "unavailable", 3958, 1800, 0, 160, "unavailable" },
+  { "Rough Copper Bomb", "used", 3923, 130, 0, 30, "used" },
+} }`;
+
+test('a trainer seen goes out with all it teaches, learned or not, and the window keeps the filters it had', () => {
+  const addon = enterWorld(MORE);
+  addon.run(10);
+  const first = sheets(addon).at(-1);
+  appHolds(addon, first.code, first.rev);
+  addon.lua(SPRINGSPINDLE);
+  addon.fire('TRAINER_SHOW');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p, { trainers: [{ n: 5174, s: [[3923, 130, 0, 30], [3958, 1800, 0, 160], [4038, 4500, 20, 125]] }] });
+  assert.equal(addon.lua('return tostring(GAME.filters.available) .. tostring(GAME.filters.unavailable) .. tostring(GAME.filters.used)'), 'truenilnil');
+  appHolds(addon, first.code, sheets(addon).at(-1).rev);
+
+  // Learning there changes the window, not what was read: the spells go out, the trainers do not.
+  addon.lua('GAME.trainer.lines[2][7] = "used"; table.insert(GAME.spells, { 4038 })');
+  addon.fire('SPELLS_CHANGED');
+  addon.run(4);
+  assert.deepEqual(Object.keys(sheets(addon).at(-1).p), ['spells']);
+});
+
+test('a class trainer goes out with the class, and is kept with the others across a /reload', () => {
+  const addon = enterWorld(MORE);
+  addon.run(10);
+  addon.lua(SPRINGSPINDLE);
+  addon.fire('TRAINER_SHOW');
+  addon.run(4);
+  addon.fire('TRAINER_CLOSED');
+  addon.lua('GAME.trainer = { npc = 5172, lines = { { "Shadow Bolt", "available", 1106, 1800, 28, nil, "available" } } }');
+  addon.fire('TRAINER_SHOW');
+  addon.run(4);
+  const sent = sheets(addon).at(-1);
+  assert.deepEqual(sent.p.trainers.map((t) => [t.n, t.c]), [[5172, 'WARLOCK'], [5174, undefined]]);
+  assert.deepEqual(sent.p.trainers[0].s, [[1106, 1800, 28, 0]]);
+
+  addon.reload();
+  addon.fire('PLAYER_LOGIN');
+  addon.fire('PLAYER_ENTERING_WORLD');
+  addon.lua(`local ns = ...; ns.receivers.sheet({ ["${KEY}"] = { code = "${sent.code}", rev = 0 } })`);
+  addon.run(10);
+  assert.deepEqual(sheets(addon).at(-1).p.trainers.map((t) => t.n), [5172, 5174]);
+});
+
+test('a window still empty when it opens is read once it is not', () => {
+  const addon = enterWorld(MORE);
+  addon.run(10);
+  addon.lua('GAME.trainer = { npc = 5174, trade = true, lines = {} }');
+  addon.fire('TRAINER_SHOW');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p.trainers, []);
+  addon.lua('GAME.trainer.lines = { { "Expert Engineer", "available", 4038, 4500, 20, 125, "available" } }');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p.trainers, [{ n: 5174, s: [[4038, 4500, 20, 125]] }]);
 });

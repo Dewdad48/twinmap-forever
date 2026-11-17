@@ -92,6 +92,27 @@ const STUB = `
     GetTreeCurrencyInfo = function() return { { quantity = GAME.free or 0 } } end,
   }
   function UnitCharacterPoints() return 0 end
+  -- An open trainer: GAME.trainer = { npc = 5174, trade = true, lines = { { name, kind, spell, cost, level, skill, filter }, ... } },
+  -- filter "available", "unavailable" or "used"; the window shows a line only while its filter is on (GAME.filters, the
+  -- game's own choice: available only). The spell is told only by a tooltip set on the line.
+  function UnitGUID(unit) if unit == "npc" and GAME.trainer then return "Creature-0-5250-0-11-" .. GAME.trainer.npc .. "-0000ABCDEF" end end
+  local function shown()
+    local out = {}
+    for _, l in ipairs(GAME.trainer and GAME.trainer.lines or {}) do if (GAME.filters or { available = true })[l[7]] then out[#out + 1] = l end end
+    return out
+  end
+  function GetNumTrainerServices() return #shown() end
+  function GetTrainerServiceInfo(i) local l = shown()[i] if l then return l[1], nil, l[2] end end
+  function GetTrainerServiceCost(i) local l = shown()[i] return l and l[4] or 0 end
+  function GetTrainerServiceLevelReq(i) local l = shown()[i] return l and l[5] or 0 end
+  function GetTrainerServiceSkillReq(i) local l = shown()[i] if l and l[6] then return "Engineering", l[6], true end end
+  function GetTrainerServiceTypeFilter(f) return (GAME.filters or { available = true })[f] == true end
+  function SetTrainerServiceTypeFilter(f, on)
+    if on ~= true and on ~= false then error("Missing on/off parameter") end
+    GAME.filters = GAME.filters or { available = true }
+    GAME.filters[f] = on or nil
+  end
+  function IsTradeskillTrainer() return GAME.trainer and GAME.trainer.trade == true end
   C_TradeSkillUI = {
     GetAllRecipeIDs = function() local out = {} for id in pairs(GAME.trade and GAME.trade.recipes or {}) do out[#out + 1] = id end table.sort(out) return out end,
     GetRecipeInfo = function(id) return { learned = GAME.trade.recipes[id] } end,
@@ -228,6 +249,8 @@ const STUB = `
 
   function CreateFrame(_, name)
     local f, cells = setmetatable({ events = {} }, Widget), {}
+    function f:SetTrainerService(i) self.service = i end
+    function f:GetSpell() local l = shown()[self.service] if l then return l[1], l[3] end end
     if name then _G[name] = f end
     function f:RegisterEvent(e) self.events[e] = true end
     function f:SetScript(kind, fn) self[kind] = fn end

@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync 
 import { join } from 'node:path'
 import { parentPort, workerData } from 'node:worker_threads'
 import { FACTS, gameItemFacts, type ItemFacts, ITEMS_FILE } from '../shared/items'
+import { trainerFacts, TRAINERS_FILE, TRAINERS_FORMAT } from '../shared/trainers'
 import { gameMaps, UI_MAP_ASSIGNMENT_FILE, UI_MAP_FILE, type GameMap } from '../shared/maps'
 import { AREA_POI_FILE, AREA_TABLE_FILE, places, UI_MAP_X_MAP_ART_FILE, WORLD_MAP_OVERLAY_FILE } from '../shared/places'
 import { TAXI_NODES_FILE, TAXI_PATH_FILE, travel, TRAVEL_FORMAT, type Travel } from '../shared/services'
@@ -136,6 +137,22 @@ try {
     }
   } catch {
     // Items shows numbers and no prices; tried again at the next start.
+  }
+  // What the class trainers teach (shared/trainers.ts): made once for each build, and again for an older format.
+  try {
+    const trainersFile = join(folder, TRAINERS_FILE)
+    let format = 0
+    try {
+      format = (JSON.parse(readFileSync(trainersFile, 'utf8')) as { format?: number }).format ?? 0
+    } catch {
+      // Not there yet.
+    }
+    if (format !== TRAINERS_FORMAT) {
+      const facts = trainerFacts(open())
+      if (facts) writeFileSync(trainersFile, JSON.stringify(facts))
+    }
+  } catch {
+    // The trainer panel goes without the game's lists; tried again at the next start.
   }
   const ready = { state: 'ready', folder, version: build.version, tiles, missing, seconds: (Date.now() - started) / 1000, converted } as const
   tell(ready)

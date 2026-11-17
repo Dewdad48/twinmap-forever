@@ -18,6 +18,8 @@
 --   talents { free = points not spent, t = { { node, rank, spell }, ... } } the talents taken
 --   recipes { known = { spell, ... }, seen = { profession, ... } } the recipes a profession's window
 --           showed learned, and those learned since; seen: the professions whose window was opened
+--   trainers { { n = npc, c = class token of a class trainer, s = { { spell, cost, level, skill }, ... } }, ... }
+--           what each trainer seen teaches, all of it, learned or not: copper, level and skill it asks
 local _, ns = ...
 
 -- The containers by the game's own numbers, as Bagnon takes them. On Forever (in the game, 17
@@ -183,6 +185,67 @@ local function Recipes(s)
   return out
 end
 
+-- Trainers: read once a visit, with every filter of the window on, then the filters set back (One for
+-- All does the same on Forever, UI/TrainerSpells.lua). The game names no spell: a hidden tooltip does.
+local trainers -- npc -> { n, c, s }
+local trainerDue = false
+local tip
+
+local function ServiceSpell(i)
+  tip = tip or CreateFrame("GameTooltip", "TwinmapForeverTrainerTip", nil, "GameTooltipTemplate")
+  local id
+  pcall(function()
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip:SetTrainerService(i)
+    id = select(2, tip:GetSpell())
+    tip:Hide()
+  end)
+  return Num(id)
+end
+
+local FILTERS = { "available", "unavailable", "used" }
+
+local function ReadTrainer()
+  local guid = Str(Try(UnitGUID, "npc"))
+  local npc = guid and tonumber(guid:match("^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-"))
+  if not npc or (Num(Try(GetNumTrainerServices)) or 0) == 0 then return false end
+  local on = {}
+  for _, f in ipairs(FILTERS) do
+    if not Try(GetTrainerServiceTypeFilter, f) and SetTrainerServiceTypeFilter and pcall(SetTrainerServiceTypeFilter, f, true) then on[#on + 1] = f end
+  end
+  local lines = {}
+  for i = 1, Num(Try(GetNumTrainerServices)) or 0 do
+    local name, _, kind = Try(GetTrainerServiceInfo, i)
+    local spell = Str(name) and kind ~= "header" and ServiceSpell(i)
+    if spell then
+      local _, skill = Try(GetTrainerServiceSkillReq, i)
+      lines[#lines + 1] = { spell, Num(Try(GetTrainerServiceCost, i)) or 0, Num(Try(GetTrainerServiceLevelReq, i)) or 0, tonumber(skill) or 0 }
+    end
+  end
+  for _, f in ipairs(on) do pcall(SetTrainerServiceTypeFilter, f, false) end
+  if #lines == 0 then return false end
+  table.sort(lines, function(a, b) return a[1] < b[1] end)
+  local _, class = Try(UnitClass, "player")
+  trainers[npc] = { n = npc, c = not Try(IsTradeskillTrainer) and Str(class) or nil, s = lines }
+  return true
+end
+
+local function Trainers(s)
+  if not trainers then
+    trainers = {}
+    local held = s.pieces.trainers and s.pieces.trainers.data
+    for _, t in ipairs(type(held) == "table" and held or {}) do
+      if type(t) == "table" and Num(t.n) then trainers[t.n] = t end
+    end
+  end
+  -- The window may still be empty when it opens: read again until it is not.
+  if trainerDue and ReadTrainer() then trainerDue = false end
+  local out = {}
+  for _, t in pairs(trainers) do out[#out + 1] = t end
+  table.sort(out, function(a, b) return a.n < b.n end)
+  return out
+end
+
 local bankOpen = false
 
 -- The pieces as the game tells them now. The bank only while it is open: the game tells it no other time.
@@ -202,6 +265,7 @@ local function Read(s)
   end
   pieces.skills, pieces.spells, pieces.talents = slow.skills, slow.spells, slow.talents
   pieces.recipes = Recipes(s)
+  pieces.trainers = Trainers(s)
   return pieces
 end
 
@@ -260,6 +324,8 @@ end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("BANKFRAME_OPENED")
 frame:RegisterEvent("BANKFRAME_CLOSED")
+frame:RegisterEvent("TRAINER_SHOW")
+frame:RegisterEvent("TRAINER_CLOSED")
 for _, event in ipairs({ "SPELLS_CHANGED", "LEARNED_SPELL_IN_TAB", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "TRAIT_CONFIG_UPDATED",
   "CHARACTER_POINTS_CHANGED", "PLAYER_LEVEL_UP", "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "NEW_RECIPE_LEARNED" }) do
   pcall(frame.RegisterEvent, frame, event) -- one the game does not have is left out
@@ -267,6 +333,8 @@ end
 frame:SetScript("OnEvent", function(_, event, recipe)
   if event == "BANKFRAME_OPENED" or event == "BANKFRAME_CLOSED" then
     bankOpen = event == "BANKFRAME_OPENED"
+  elseif event == "TRAINER_SHOW" or event == "TRAINER_CLOSED" then
+    trainerDue = event == "TRAINER_SHOW"
   elseif event == "NEW_RECIPE_LEARNED" then
     if Num(recipe) then learned[#learned + 1] = recipe end
   elseif event:match("^TRADE_SKILL") then
