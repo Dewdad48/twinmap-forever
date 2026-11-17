@@ -146,7 +146,11 @@ local function BuildChar()
   if not level then return end
   local faction = Str(Try(UnitFactionGroup, "player"))
   local side = (faction == "Alliance" and "A") or (faction == "Horde" and "H") or nil
-  return { level = level, xp = Num(Try(UnitXP, "player")), max = Num(Try(UnitXPMax, "player")), rested = Num(Try(GetXPExhaustion)), side = side }
+  -- Who: name and surname, as the sheet calls the character (Sheet.lua), so the app knows whose sheet is the one in game.
+  local name, surname = Try(UnitFullName, "player")
+  name, surname = Str(name), Str(surname)
+  if name and surname and surname ~= "" then name = name .. " " .. surname end
+  return { level = level, xp = Num(Try(UnitXP, "player")), max = Num(Try(UnitXPMax, "player")), rested = Num(Try(GetXPExhaustion)), side = side, name = name }
 end
 
 -- name, seconds between checks, builder. combat: also sent during a fight; the rest waits for its end.

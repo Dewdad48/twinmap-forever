@@ -332,6 +332,7 @@ function createWindow(): void {
     lan = started
     lan.tell('quests', questsNow)
     lan.tell('kept', kept)
+    lan.tell('sheets', sheets)
     void lanUrl()
   }
   ipcMain.handle('set-lan', (_event, on: unknown) => {
@@ -355,6 +356,30 @@ function createWindow(): void {
   } catch {
     // no character seen yet
   }
+  // Every screen is told the sheets, for the picker of the character: at load, and at every change.
+  const tellSheets = (): void => {
+    if (!win.isDestroyed()) win.webContents.send('sheets', sheets)
+    lan?.tell('sheets', sheets)
+  }
+  win.webContents.on('did-finish-load', tellSheets)
+  const writeSheets = (): void => {
+    try {
+      writeFileSync(`${sheetsFile}.new`, JSON.stringify(sheets))
+      renameSync(`${sheetsFile}.new`, sheetsFile)
+    } catch {
+      // kept for this run only: the addon is told all the same, and sends again what is lost when the app opens next
+    }
+    tellSheets()
+  }
+  const tellHeld = (): void => {
+    if (!gameFolder) return
+    try {
+      const addons = addonsFolder(gameFolder), held = heldOf(sheets)
+      if (JSON.stringify(sentParts(addons).sheet) !== JSON.stringify(held)) send(addons, { sheet: held }, addonHearsFonts(gameFolder))
+    } catch {
+      // the way to the game is not there yet: the addon sends again until it is
+    }
+  }
   let sheetHeard = ''
   const takeSheet = (section: unknown): void => {
     const text = JSON.stringify(section ?? null)
@@ -366,21 +391,17 @@ function createWindow(): void {
     if (now !== sheets) {
       sheets = now
       record.note('sheet', `revision ${news.rev}: ${Object.keys(news.p).sort().join(', ')}`) // which pieces came, never what is in them
-      try {
-        writeFileSync(`${sheetsFile}.new`, JSON.stringify(sheets))
-        renameSync(`${sheetsFile}.new`, sheetsFile)
-      } catch {
-        // kept for this run only: the addon is told all the same, and sends again what is lost when the app opens next
-      }
+      writeSheets()
     }
-    if (!gameFolder) return
-    try {
-      const addons = addonsFolder(gameFolder), held = heldOf(sheets)
-      if (JSON.stringify(sentParts(addons).sheet) !== JSON.stringify(held)) send(addons, { sheet: held }, addonHearsFonts(gameFolder))
-    } catch {
-      // the way to the game is not there yet: the addon sends again until it is
-    }
+    tellHeld()
   }
+  // A character the player no longer wants listed. The one in game comes back whole at its next send.
+  asks('forget-sheet', (key: unknown): void => {
+    if (typeof key !== 'string' || !Object.hasOwn(sheets, key)) return
+    sheets = Object.fromEntries(Object.entries(sheets).filter(([k]) => k !== key))
+    writeSheets()
+    tellHeld()
+  })
   // My pins: the game draws them on its own map, so it is to have the points saved here and no
   // other. The window tells them at every change and when it loads; only what changed is sent.
   // A send the addon has not read yet when the next one leaves costs one of its slots, and it reads
