@@ -1,5 +1,5 @@
--- The character sheet, for the app to keep: who the character is, money, bags, bank and what is
--- worn. Each piece carries the revision of its last change, saved with the character
+-- The character sheet, for the app to keep: who the character is, money, bags, bank, what is
+-- worn, skills, spells, talents and recipes. Each piece carries the revision of its last change, saved with the character
 -- (TwinmapForeverSheet). The app tells back, as its part "sheet", the code and revision it holds
 -- for each character; whatever changed after that goes out on the strip, and again every so often,
 -- until the app says it has it. So what changed while the app was closed reaches it when it opens.
@@ -13,6 +13,11 @@
 --   bags  { { b = container, n = slots, s = { { slot, item, count }, ... } }, ... } backpack, bags, reagent bag, keyring
 --   bank  the same for the bank and its bags, as they were when last open
 --   gear  { { slot, item, durability, most }, ... } durability missing for what does not wear
+--   skills  { { skill, rank, most }, ... } every skill line by the game's number: professions, weapons, languages
+--   spells  { spell, ... } the spells in the spellbook, those not learned yet left out
+--   talents { free = points not spent, t = { { node, rank, spell }, ... } } the talents taken
+--   recipes { known = { spell, ... }, seen = { profession, ... } } the recipes a profession's window
+--           showed learned, and those learned since; seen: the professions whose window was opened
 local _, ns = ...
 
 -- The containers by the game's own numbers, as Bagnon takes them. On Forever (in the game, 17
@@ -72,10 +77,116 @@ local function Worn()
   return out
 end
 
+-- Forever's own ways: the old GetNumSpellTabs and GetTalentInfo are not there (wow-state, in the game).
+local function Skills()
+  local out = {}
+  for i = 1, C_SkillInfo and Num(Try(C_SkillInfo.GetNumSkillLines)) or 0 do
+    local line = Try(C_SkillInfo.GetSkillLineInfo, i)
+    if type(line) == "table" and not line.isHeader and Num(line.skillID) then
+      out[#out + 1] = { line.skillID, Num(line.rank) or 0, Num(line.maxRank) or 0 }
+    end
+  end
+  table.sort(out, function(a, b) return a[1] < b[1] end)
+  return out
+end
+
+local function Spells()
+  local out, have = {}, {}
+  local book = C_SpellBook
+  if not (book and book.GetNumSpellBookSkillLines) then return out end
+  local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
+  local future = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.FutureSpell
+  for line = 1, Num(Try(book.GetNumSpellBookSkillLines)) or 0 do
+    local info = Try(book.GetSpellBookSkillLineInfo, line)
+    local first = type(info) == "table" and Num(info.itemIndexOffset) or 0
+    for i = first + 1, first + (type(info) == "table" and Num(info.numSpellBookItems) or 0) do
+      local item = Try(book.GetSpellBookItemInfo, i, bank)
+      local spell = type(item) == "table" and item.itemType ~= future and Num(item.spellID)
+      if spell and not have[spell] then have[spell], out[#out + 1] = true, spell end
+    end
+  end
+  table.sort(out)
+  return out
+end
+
+-- The talent trees of the active set, as wow-state reads them in the game.
+local function Talents()
+  local config = C_ClassTalents and Try(C_ClassTalents.GetActiveConfigID)
+  local info = config and C_Traits and Try(C_Traits.GetConfigInfo, config)
+  if type(info) ~= "table" or type(info.treeIDs) ~= "table" then return nil end
+  local taken, spare = {}, 0
+  for _, tree in ipairs(info.treeIDs) do
+    for _, node in ipairs(Try(C_Traits.GetTreeNodes, tree) or {}) do
+      local n = Try(C_Traits.GetNodeInfo, config, node)
+      -- currentRank first: ranksPurchased is 0 on a rank given for free.
+      local rank = type(n) == "table" and n.isVisible ~= false and Num(n.currentRank or n.ranksPurchased) or 0
+      if rank > 0 then
+        local entry = (type(n.activeEntry) == "table" and n.activeEntry.entryID) or (type(n.entryIDs) == "table" and n.entryIDs[1])
+        local e = entry and Try(C_Traits.GetEntryInfo, config, entry)
+        local d = type(e) == "table" and e.definitionID and Try(C_Traits.GetDefinitionInfo, e.definitionID)
+        taken[#taken + 1] = { node, rank, type(d) == "table" and Num(d.spellID or d.overriddenSpellID) or nil }
+      end
+    end
+    for _, c in ipairs(Try(C_Traits.GetTreeCurrencyInfo, config, tree, false) or {}) do
+      spare = math.max(spare, type(c) == "table" and Num(c.quantity) or 0)
+    end
+  end
+  table.sort(taken, function(a, b) return a[1] < b[1] end)
+  local points = Num(Try(UnitCharacterPoints, "player")) or 0
+  return { free = points > 0 and points or spare, t = taken }
+end
+
+-- Skills, spells and talents change seldom and take longer to read: again when the game says they
+-- changed, and every half minute besides.
+local AGAIN = 30
+local slow, slowAt = {}, 0
+
+-- Recipes: the window of a profession lists all its recipes, learned or not, and each one learned
+-- since the game tells as it happens. Kept in the saved sheet, so a window opened once is enough.
+local known, seen -- spell -> true, profession -> true
+local scanDue, learned = false, {}
+
+local function ScanWindow()
+  local T = C_TradeSkillUI
+  if not (T and T.GetAllRecipeIDs) then return end
+  -- Someone else's recipes, shown through a link or by an NPC, are not this character's.
+  if Try(T.IsTradeSkillLinked) or Try(T.IsTradeSkillGuild) or Try(T.IsNPCCrafting) then return end
+  local ids = Try(T.GetAllRecipeIDs)
+  if type(ids) ~= "table" or #ids == 0 then return end
+  local now = {}
+  for _, id in ipairs(ids) do
+    local info = Try(T.GetRecipeInfo, id)
+    -- A recipe not told learned or not is still loading: the window's next update has it.
+    if type(info) ~= "table" or type(info.learned) ~= "boolean" or not Num(id) then return end
+    now[id] = info.learned
+  end
+  for id, yes in pairs(now) do known[id] = yes or nil end
+  local base = Try(T.GetBaseProfessionInfo)
+  if type(base) == "table" and Num(base.professionID) then seen[base.professionID] = true end
+end
+
+local function Recipes(s)
+  if not known then
+    known, seen = {}, {}
+    local held = s.pieces.recipes and s.pieces.recipes.data
+    for _, id in ipairs(type(held) == "table" and type(held.known) == "table" and held.known or {}) do known[id] = true end
+    for _, id in ipairs(type(held) == "table" and type(held.seen) == "table" and held.seen or {}) do seen[id] = true end
+  end
+  if scanDue then scanDue = false ScanWindow() end
+  for _, id in ipairs(learned) do known[id] = true end
+  learned = {}
+  local out = { known = {}, seen = {} }
+  for id in pairs(known) do out.known[#out.known + 1] = id end
+  for id in pairs(seen) do out.seen[#out.seen + 1] = id end
+  table.sort(out.known)
+  table.sort(out.seen)
+  return out
+end
+
 local bankOpen = false
 
 -- The pieces as the game tells them now. The bank only while it is open: the game tells it no other time.
-local function Read()
+local function Read(s)
   local _, race = Try(UnitRace, "player")
   local _, class = Try(UnitClass, "player")
   local pieces = {
@@ -85,6 +196,12 @@ local function Read()
     gear = Worn(),
   }
   if bankOpen then pieces.bank = Containers(BANK) end
+  local now = GetTime()
+  if now >= slowAt then
+    slow, slowAt = { skills = Skills(), spells = Spells(), talents = Talents() }, now + AGAIN
+  end
+  pieces.skills, pieces.spells, pieces.talents = slow.skills, slow.spells, slow.talents
+  pieces.recipes = Recipes(s)
   return pieces
 end
 
@@ -102,7 +219,7 @@ end
 
 -- A piece whose text changed takes the next revision.
 local function Update(s)
-  for name, data in pairs(Read()) do
+  for name, data in pairs(Read(s)) do
     local held = s.pieces[name]
     if not held or ns.Json(held.data) ~= ns.Json(data) then
       s.rev = s.rev + 1
@@ -143,6 +260,20 @@ end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("BANKFRAME_OPENED")
 frame:RegisterEvent("BANKFRAME_CLOSED")
-frame:SetScript("OnEvent", function(_, event) bankOpen = event == "BANKFRAME_OPENED" end)
+for _, event in ipairs({ "SPELLS_CHANGED", "LEARNED_SPELL_IN_TAB", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "TRAIT_CONFIG_UPDATED",
+  "CHARACTER_POINTS_CHANGED", "PLAYER_LEVEL_UP", "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_DATA_SOURCE_CHANGED", "NEW_RECIPE_LEARNED" }) do
+  pcall(frame.RegisterEvent, frame, event) -- one the game does not have is left out
+end
+frame:SetScript("OnEvent", function(_, event, recipe)
+  if event == "BANKFRAME_OPENED" or event == "BANKFRAME_CLOSED" then
+    bankOpen = event == "BANKFRAME_OPENED"
+  elseif event == "NEW_RECIPE_LEARNED" then
+    if Num(recipe) then learned[#learned + 1] = recipe end
+  elseif event:match("^TRADE_SKILL") then
+    scanDue = true
+  else
+    slowAt = 0
+  end
+end)
 
 ns.sections[#ns.sections + 1] = { name = "sheet", period = 2, build = Build }

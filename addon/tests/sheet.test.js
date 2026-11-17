@@ -35,6 +35,9 @@ test('the whole sheet goes out at first, with who, money, bags with the reagent 
     money: 3440,
     bags: [{ b: 0, n: 16, s: [[1, 6948, 1], [3, 159, 5]] }, { b: 1, n: 6, s: [] }, { b: 5, n: 12, s: [[2, 2447, 7]] }, { b: -1, n: 32, s: [[1, 5396, 1]] }],
     gear: [[1, 4245, 30, 35], [5, 6097]],
+    skills: [],
+    spells: [],
+    recipes: { known: [], seen: [] },
   });
   assert.equal(sent.p.bank, undefined, 'the bank went out before it was ever open');
 });
@@ -121,14 +124,14 @@ test('an app that holds another sheet gets this one whole; an app ahead of it ge
   appHolds(addon, 'deadbeef', 50);
   addon.lua('GAME.money = 1');
   addon.run(4);
-  assert.deepEqual(Object.keys(sheets(addon).at(-1).p).sort(), ['bags', 'gear', 'money', 'who']);
+  assert.deepEqual(Object.keys(sheets(addon).at(-1).p).sort(), ['bags', 'gear', 'money', 'recipes', 'skills', 'spells', 'who']);
 
   appHolds(addon, first.code, 50);
   addon.run(4);
   const again = sheets(addon).at(-1);
   assert.equal(again.code, first.code);
   assert.ok(again.rev > 50, `revision ${again.rev}`);
-  assert.deepEqual(Object.keys(again.p).sort(), ['bags', 'gear', 'money', 'who']);
+  assert.deepEqual(Object.keys(again.p).sort(), ['bags', 'gear', 'money', 'recipes', 'skills', 'spells', 'who']);
 });
 
 test('in a fight the sheet waits', () => {
@@ -142,4 +145,81 @@ test('in a fight the sheet waits', () => {
   addon.lua('GAME.combat = false');
   addon.run(4);
   assert.equal(sheets(addon).at(-1).p.money, 100);
+});
+
+// A warlock who knows two spells, has two skills, two talents, and Engineering: one recipe of two learned.
+const MORE = WORLD + `
+  GAME.skills = { { 202, 168, 225 }, { 0, 0, 0, true }, { 95, 140, 145 } }
+  GAME.spells = { { 686 }, { 172 }, { 6229, true } }
+  GAME.talents = { [105874] = { 1, 412758 }, [105875] = { 3, 30288 } }
+  GAME.free = 2`;
+
+test("skills, spells and talents go out with the sheet, by the game's numbers; a spell not learned yet does not", () => {
+  const addon = enterWorld(MORE);
+  addon.run(10);
+  const { p } = sheets(addon).at(-1);
+  assert.deepEqual(p.skills, [[95, 140, 145], [202, 168, 225]]);
+  assert.deepEqual(p.spells, [172, 686]);
+  assert.deepEqual(p.talents, { free: 2, t: [[105874, 1, 412758], [105875, 3, 30288]] });
+});
+
+test('a spell learned sends the spells alone, and a skill gone up the skills alone', () => {
+  const addon = enterWorld(MORE);
+  addon.run(10);
+  const first = sheets(addon).at(-1);
+  appHolds(addon, first.code, first.rev);
+  addon.lua('table.insert(GAME.spells, { 1454 })');
+  addon.fire('SPELLS_CHANGED');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p, { spells: [172, 686, 1454] });
+  appHolds(addon, first.code, sheets(addon).at(-1).rev);
+  addon.lua('GAME.skills[1][2] = 169');
+  addon.fire('CHAT_MSG_SKILL');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p, { skills: [[95, 140, 145], [202, 169, 225]] });
+});
+
+test('the recipes come from the window of a profession, and one learned since without it', () => {
+  const addon = enterWorld(MORE);
+  addon.run(10);
+  const first = sheets(addon).at(-1);
+  appHolds(addon, first.code, first.rev);
+
+  addon.lua('GAME.trade = { profession = 202, recipes = { [3930] = true, [3931] = false } }');
+  addon.fire('TRADE_SKILL_SHOW');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p, { recipes: { known: [3930], seen: [202] } });
+  appHolds(addon, first.code, sheets(addon).at(-1).rev);
+
+  addon.lua('GAME.trade = nil; T_fire("NEW_RECIPE_LEARNED", 3931)');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p, { recipes: { known: [3930, 3931], seen: [202] } });
+
+  // Kept across a /reload: the window needs no opening again.
+  addon.reload();
+  addon.fire('PLAYER_LOGIN');
+  addon.fire('PLAYER_ENTERING_WORLD');
+  addon.lua(`local ns = ...; ns.receivers.sheet({ ["${KEY}"] = { code = "${first.code}", rev = 0 } })`);
+  addon.run(10);
+  assert.deepEqual(sheets(addon).at(-1).p.recipes, { known: [3930, 3931], seen: [202] });
+});
+
+test("a recipe the window has not loaded yet, or a window of someone else's recipes, changes nothing", () => {
+  const addon = enterWorld(MORE);
+  addon.run(10);
+  const first = sheets(addon).at(-1);
+  appHolds(addon, first.code, first.rev);
+  addon.lua('GAME.trade = { profession = 202, recipes = { [3930] = true } }');
+  addon.lua('local info = C_TradeSkillUI.GetRecipeInfo; C_TradeSkillUI.GetRecipeInfo = function(id) return {} end; LOADING = info');
+  addon.fire('TRADE_SKILL_SHOW');
+  addon.run(4);
+  assert.equal(sheets(addon).length, 1, 'a window still loading was taken');
+  addon.lua('C_TradeSkillUI.GetRecipeInfo = LOADING; GAME.trade.linked = true');
+  addon.fire('TRADE_SKILL_SHOW');
+  addon.run(4);
+  assert.equal(sheets(addon).length, 1, 'a linked window was taken');
+  addon.lua('GAME.trade.linked = false');
+  addon.fire('TRADE_SKILL_LIST_UPDATE');
+  addon.run(4);
+  assert.deepEqual(sheets(addon).at(-1).p, { recipes: { known: [3930], seen: [202] } });
 });
