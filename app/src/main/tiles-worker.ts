@@ -10,17 +10,21 @@ import { AREA_POI_FILE, AREA_TABLE_FILE, places, UI_MAP_X_MAP_ART_FILE, WORLD_MA
 import { TAXI_NODES_FILE, TAXI_PATH_FILE, travel, TRAVEL_FORMAT, type Travel } from '../shared/services'
 import type { TilesStatus } from '../shared/tiles-status'
 import { readTable } from '../shared/wdc5'
+import { LIQUID_TYPE_FILE, liquidOfName, WATER } from '../shared/water'
 import { WORLDS } from '../shared/world'
 import { installedBuild, openClientFiles, type ClientFiles } from './client-files'
 import { convertInteriors, ENCOUNTERS_FILE, finishedInteriors, INTERIORS_FILE, MAP_FILE, mapEntries, ROOM_PICTURES_FILE, roomPictures } from './interiors'
 import { sentKeys } from './keys'
 import { convertHeights, heightsDone } from './heights'
-import { makeCaves } from './caves'
+import { makeCaves, makeUnder } from './caves'
+import { navFrom } from '../shared/nav-data'
+import { walker, type Walker } from './walk'
+import { MIDDLE_YARDS } from '../shared/inside'
 import { ICONS_MADE, writeIcons } from './icons'
 import { gamePictures, itemIcons } from './item-icons'
 import { convertWorld, dropOtherBuilds, finished, ICONS_FOLDER, MAPS_FILE, PLACES_FILE, tilesFolder, TRAVEL_FILE } from './tiles'
 
-const { gameFolder, base } = workerData as { gameFolder: string; base: string }
+const { gameFolder, base, nav } = workerData as { gameFolder: string; base: string; nav: string }
 const tell = (status: TilesStatus): void => parentPort?.postMessage(status)
 /** In the folder of the build: the game's numbers of the keys the map was made with. */
 const KEYS_FILE = 'keys.json'
@@ -76,7 +80,14 @@ try {
     if (relief) {
       try {
         const files = open()
-        convertHeights(wdt(), (id) => files.read(id), join(folder, world.name), (done, total) => progress(((i + 1 - share + share * (done / total)) / WORLDS.length) * 100))
+        // What each liquid is, by its name in the game's table; without the table, all water.
+        const liquids = new Map<number, number>()
+        try {
+          for (const row of table(files.read(LIQUID_TYPE_FILE)!).rows) liquids.set(row.id, liquidOfName(row.text(0)))
+        } catch {
+          // all water
+        }
+        convertHeights(wdt(), (id) => files.read(id), join(folder, world.name), (done, total) => progress(((i + 1 - share + share * (done / total)) / WORLDS.length) * 100), (type) => liquids.get(type) ?? WATER)
       } catch {
         // The map does without its relief; it is tried again at the next start.
       }
@@ -174,7 +185,17 @@ try {
     }
     // Which of the continents' buildings are caves and mines: for the layer that shows them from outside. Without it the map goes on as before.
     try {
-      makeCaves(folder, inside)
+      const caves = makeCaves(folder, inside)
+      // And for the 3D view the rooms inside the ground, each with its floor as the walking grid shipped with the app tells it.
+      const walkers = new Map<number, Walker | null>()
+      const walk = (continent: number): Walker | null => {
+        if (!walkers.has(continent)) {
+          const data = navFrom(readFileSync(join(nav, `nav${continent}.json`), 'utf8'))
+          walkers.set(continent, data && walker(data))
+        }
+        return walkers.get(continent)!
+      }
+      if (caves) makeUnder(folder, inside, caves, (continent, u, v) => walk(continent)?.heights([MIDDLE_YARDS - v, MIDDLE_YARDS - u]) ?? [])
     } catch {
       // tried again at the next start
     }

@@ -22,6 +22,11 @@ const OFFROAD = 1.5 // a yard off the road counts as this many on it
 const CLIMB = Math.tan((50 * Math.PI) / 180) // the steepest rise a character walks up, a yard for each yard on
 const SNAP = 6 // cells around a point searched for one that can be walked
 const LIMIT = 400_000 // cells a search looks at before it gives up
+const TRACK_SLACK = 6 // steps a tracker searches past twice the cells between two points: a ramp, a stair that turns
+const LEVEL = 3 // yards between two places to stand for one to be another floor
+const HIGH = 10 // yards a place must be over a character on foot in the open to be over its head (see the tracker)
+const NEAR = 1 // cells from the last place within which a place with no way to it is not believed (see the tracker)
+const AREA = 25 // places to stand a floor over the character must lead to: the top of a tree or a lamp is an island
 const B64 = new Uint8Array(128)
 Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/').forEach((c, i) => (B64[c.charCodeAt(0)] = i))
 
@@ -105,7 +110,15 @@ const KEY = 65536 // a node of the continent: its cluster times this, plus its n
  * yards it is on foot from one point to each of many, in one search that spreads from the first
  * (null for those not reached within `reach` yards, or with nowhere to stand).
  */
-export type Walker = ((from: Yards, to: Yards) => Walk | null) & { far: (from: Yards, tos: Yards[], reach: number) => (number | null)[] }
+export type Walker = ((from: Yards, to: Yards) => Walk | null) & { far: (from: Yards, tos: Yards[], reach: number) => (number | null)[]; track: () => Tracker; wander: (from: Yards, count: number, random: () => number) => [Yards, number][]; heights: (at: Yards) => number[] }
+
+/**
+ * Where a character stands, point after point (yards of the world): its height, and how many
+ * other places to stand its cell has over it (a bridge over a canal, the floor above) and under
+ * it. null where the point's cell has none at all. indoors: as the game tells it, for where to
+ * start when there is no point before to go on.
+ */
+export type Tracker = (at: Yards, indoors?: boolean) => { z: number; over: number; under: number } | null
 
 /** Clusters are unpacked as searches cross them, and kept. */
 export function walker(nav: NavData): Walker {
@@ -325,6 +338,34 @@ export function walker(nav: NavData): Walker {
   }
 
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] as const
+  type Visit = (next: number, tx: number, ty: number, into: Cluster, target: number, drop: number) => void
+  // Every step that can be taken from a place to stand: on the base grid, by the cluster's own
+  // links, and in from the floors of the next cluster. drop: yards of a drop, 0 for a step.
+  function steps(here: number, visit: Visit): void {
+    const [gx, gy, c, node] = placeOf(here), k = Math.floor(here / KEY), lx = gx % C, ly = gy % C
+    if (node < N) {
+      for (const [dx, dy] of DIRS) {
+        const tx = gx + dx, ty = gy + dy
+        if (!inside(tx, ty) || !(dx !== 0 && dy !== 0 ? diagonalLegal(gx, gy, dx, dy) : stepLegal(gx, gy, dx, dy))) continue
+        const tk = clusterAt(tx, ty)
+        visit(tk * KEY + local(tx, ty), tx, ty, cluster(tk)!, local(tx, ty), 0)
+      }
+    }
+    for (const link of c.links[node] ?? []) {
+      const tx = gx + link.dx, ty = gy + link.dy
+      if (!inside(tx, ty)) continue
+      const tk = clusterAt(tx, ty), into = cluster(tk), target = into ? surface(into, local(tx, ty), link.layer, c.z[node]!) : -1
+      if (target >= 0 && climbable(c, node, into!, target, cell * Math.hypot(link.dx, link.dy))) visit(tk * KEY + target, tx, ty, into!, target, link.cost)
+    }
+    // At the edge of a cluster: the steps that come in from the floors of the next one.
+    if (lx === 0 || ly === 0 || lx === C - 1 || ly === C - 1) {
+      mirrorInto(k)
+      for (const next of across.get(here) ?? []) {
+        const [tx, ty, into, target] = placeOf(next)
+        if (climbable(c, node, into, target, cell * Math.hypot(tx - gx, ty - gy))) visit(next, tx, ty, into, target, 0)
+      }
+    }
+  }
   const placeOf = (key: number): [number, number, Cluster, number] => {
     const k = Math.floor(key / KEY), node = key % KEY, c = cluster(k)!, lc = node < N ? node : c.cell[node]!
     return [Math.floor(k / nav.ny) * C + Math.floor(lc / C), (k % nav.ny) * C + (lc % C), c, node]
@@ -407,8 +448,7 @@ export function walker(nav: NavData): Walker {
       if (walked > reach) break
       for (const i of ends.get(here) ?? []) if (goals[i]! < 0) (goals[i] = here), left--
       if (!left) break
-      const [gx, gy, c, node] = placeOf(here), k = Math.floor(here / KEY)
-      const lx = gx % C, ly = gy % C
+      const [gx, gy, c] = placeOf(here)
       const relax = (next: number, tx: number, ty: number, into: Cluster, target: number, drop: number): void => {
         if (done.has(next)) return
         // Yards walked: half as much again off the road, the map's own price in water, a drop at its own.
@@ -418,28 +458,7 @@ export function walker(nav: NavData): Walker {
         came.set(next, here)
         push([walked + step + (aim ? cell * Math.hypot(tx - aim[0], ty - aim[1]) : 0), next])
       }
-      if (node < N) {
-        for (const [dx, dy] of DIRS) {
-          const tx = gx + dx, ty = gy + dy
-          if (!inside(tx, ty) || !(dx !== 0 && dy !== 0 ? diagonalLegal(gx, gy, dx, dy) : stepLegal(gx, gy, dx, dy))) continue
-          const tk = clusterAt(tx, ty)
-          relax(tk * KEY + local(tx, ty), tx, ty, cluster(tk)!, local(tx, ty), 0)
-        }
-      }
-      for (const link of c.links[node] ?? []) {
-        const tx = gx + link.dx, ty = gy + link.dy
-        if (!inside(tx, ty)) continue
-        const tk = clusterAt(tx, ty), into = cluster(tk), target = into ? surface(into, local(tx, ty), link.layer, c.z[node]!) : -1
-        if (target >= 0 && climbable(c, node, into!, target, cell * Math.hypot(link.dx, link.dy))) relax(tk * KEY + target, tx, ty, into!, target, link.cost)
-      }
-      // At the edge of a cluster: the steps that come in from the floors of the next one.
-      if (lx === 0 || ly === 0 || lx === C - 1 || ly === C - 1) {
-        mirrorInto(k)
-        for (const next of across.get(here) ?? []) {
-          const [tx, ty, into, target] = placeOf(next)
-          if (climbable(c, node, into, target, cell * Math.hypot(tx - gx, ty - gy))) relax(next, tx, ty, into, target, 0)
-        }
-      }
+      steps(here, relax)
     }
     return { came, goals }
   }
@@ -457,6 +476,88 @@ export function walker(nav: NavData): Walker {
     return { cells, yards: Math.round(Math.max(yards, Math.hypot(to[0] - from[0], to[1] - from[1]))) }
   }
 
+  const zOf = (key: number): number => {
+    const [, , c, node] = placeOf(key)
+    return c.z[node]!
+  }
+  // A place to stand that leads to at least AREA others: a floor, a bridge, a hill; not the top of a tree.
+  const wideKept = new Map<number, boolean>()
+  const wide = (from: number): boolean => {
+    if (!wideKept.has(from)) {
+      const seen = new Set([from]), queue = [from]
+      for (let i = 0; i < queue.length && seen.size < AREA; i++) steps(queue[i]!, (next) => void (seen.has(next) || (seen.add(next), queue.push(next))))
+      wideKept.set(from, seen.size >= AREA)
+    }
+    return wideKept.get(from)!
+  }
+  // Follows one character: where it stood is where the next point is looked for from.
+  const track = (): Tracker => {
+    let at: number | null = null
+    return ([x, y], indoors) => {
+      const gx = Math.floor((x - nav.cx0 * BLOCK_YARDS) / cell), gy = Math.floor((y - nav.cy0 * BLOCK_YARDS) / cell)
+      const here = standing(gx, gy)
+      if (!here.length) return null // a wall, a roof, out of the grid: nothing to say, and the last place is kept
+      if (at === null || !here.includes(at)) {
+        // From the last place, the place of this cell the fewest steps reach (the steps of a fall
+        // count too); of two as few steps away, the one nearer the last height.
+        let found = -1
+        if (at !== null) {
+          const [ax, ay] = placeOf(at), most = 2 * Math.max(Math.abs(gx - ax), Math.abs(gy - ay)) + TRACK_SLACK, z0 = zOf(at)
+          const wanted = new Set(here), depth = new Map([[at, 0]]), queue = [at]
+          for (let i = 0; i < queue.length; i++) {
+            const from = queue[i]!, d = depth.get(from)!
+            if (d >= most || found >= 0) continue
+            steps(from, (next) => {
+              if (depth.has(next)) return
+              if (wanted.has(next) && (found < 0 || (depth.get(found) === d + 1 && Math.abs(zOf(next) - z0) < Math.abs(zOf(found) - z0)))) found = next
+              depth.set(next, d + 1)
+              queue.push(next)
+            })
+          }
+        }
+        // No way there, one cell on, and every place far over or under the last: the cell is a wall
+        // in the grid, with only the ground it keeps under a city. Nothing to say, the last place kept.
+        if (found < 0 && at !== null) {
+          const [ax, ay] = placeOf(at), z0 = zOf(at)
+          if (Math.max(Math.abs(gx - ax), Math.abs(gy - ay)) <= NEAR && here.every((n) => Math.abs(zOf(n) - z0) > HIGH)) return null
+        }
+        // None: a flight, a portal, a first point. The surface nearest the last height; with none,
+        // under a roof the highest that has another over it (a mine under its hill, the ground
+        // floor of a house), in the open the top one (a bridge, where a flight lands).
+        const last = at === null ? null : zOf(at), top = Math.max(...here.map(zOf))
+        const roofed = here.filter((n) => zOf(n) < top - LEVEL), start = (list: number[]): number => list.reduce((a, b) => (zOf(b) > zOf(a) ? b : a))
+        at = found >= 0 ? found : last !== null ? here.reduce((a, b) => (Math.abs(zOf(b) - last) < Math.abs(zOf(a) - last) ? b : a)) : start(indoors && roofed.length ? roofed : here)
+      }
+      // Over its head: under a roof (a mine, the floor above), or swimming (under a bridge), any
+      // floor over it; on foot in the open only a high one. A city's streets lie a few yards under
+      // the ground the grid keeps from the terrain beneath them, which is over no one's head.
+      const z = zOf(at), [, , c, node] = placeOf(at), clear = indoors || c.val[node] === 2 ? LEVEL : HIGH
+      return { z, over: here.filter((n) => zOf(n) > z + clear && wide(n)).length, under: here.filter((n) => zOf(n) < z - LEVEL).length }
+    }
+  }
+  // For trials of the tracker: a walk taken step by step from a point, each step one the grid
+  // allows, keeping its heading where it can. Gives the middle of each cell and the height stood at.
+  const wander = (from: Yards, count: number, random: () => number): [Yards, number][] => {
+    let here = snap(from)[0]
+    if (here === undefined) return []
+    const out: [Yards, number][] = []
+    let heading: [number, number] = [0, 0]
+    for (let i = 0; i < count; i++) {
+      const [gx, gy] = placeOf(here)
+      out.push([middle(gx, gy), zOf(here)])
+      // A fall now and then, as a player jumps off a bridge: most of the time the steps that walk.
+      let next: [number, number, number][] = []
+      const falls: [number, number, number][] = []
+      steps(here, (n, tx, ty, _into, _target, drop) => (drop > 0 ? falls : next).push([n, tx - gx, ty - gy]))
+      if (!next.length || (falls.length && random() < 0.05)) next = falls
+      if (!next.length) break
+      const ahead = next.filter(([, dx, dy]) => dx === heading[0] && dy === heading[1])
+      const [n, dx, dy] = ahead.length && random() < 0.8 ? ahead[Math.floor(random() * ahead.length)]! : next[Math.floor(random() * next.length)]!
+      here = n
+      heading = [Math.sign(dx), Math.sign(dy)]
+    }
+    return out
+  }
   const find = (from: Yards, to: Yards): Walk | null => {
     const { came, goals } = search(from, [to], Infinity)
     if (goals[0]! < 0) return null
@@ -468,7 +569,9 @@ export function walker(nav: NavData): Walker {
     const { came, goals } = search(from, tos, reach)
     return goals.map((goal, i) => (goal < 0 ? null : wayBack(came, goal, from, tos[i]!).yards))
   }
-  return Object.assign(find, { far })
+  // Every height there is to stand at on the cell of a point: none where nothing is walked.
+  const heights = ([x, y]: Yards): number[] => standing(Math.floor((x - nav.cx0 * BLOCK_YARDS) / cell), Math.floor((y - nav.cy0 * BLOCK_YARDS) / cell)).map(zOf)
+  return Object.assign(find, { far, track, wander, heights })
 }
 
 

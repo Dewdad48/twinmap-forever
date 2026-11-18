@@ -31,7 +31,7 @@ import { updateFirst } from './update'
 import startWalkWorker from './walk-worker?nodeWorker'
 import { navFolder } from './nav'
 import { encodePng } from './png'
-import { farAskFrom, walkAskFrom, type Far, type FarAsk, type WalkAsk, type WalkPath } from '../shared/walk'
+import { farAskFrom, trackAskFrom, walkAskFrom, type Far, type FarAsk, type Floors, type TrackAsk, type WalkAsk, type WalkPath } from '../shared/walk'
 
 const SHOW_EVERY = 50 // ms between updates of the window: a position must be there well before the arrow needs it (BEHIND in glide.ts)
 const LOG_EVERY = 5000 // ms between writes of the measures
@@ -57,7 +57,7 @@ function startTiles(gameFolder: string | null): { status: () => TilesStatus; ite
   let status: TilesStatus = { state: 'looking' }
   if (!gameFolder) return { status: () => ({ state: 'no-game' }), item: () => Promise.resolve(false), stop: () => {} }
   const base = process.env.TWINMAP_DATA ?? join(process.env.LOCALAPPDATA ?? app.getPath('userData'), 'Twinmap')
-  const worker = startTilesWorker({ workerData: { gameFolder, base } })
+  const worker = startTilesWorker({ workerData: { gameFolder, base, nav: navFolder() } })
   // The picture of an item, or of a spell by its file, the folder does not have yet is made by the worker, which has the game's archive (item-icons.ts).
   const items = new Map<string, ((made: boolean) => void)[]>()
   worker.on('message', (told: TilesStatus | { asked: string; made: boolean }) => {
@@ -128,11 +128,11 @@ function startQuests(gameFolder: string | null, tell: (status: QuestsStatus) => 
 }
 
 // The ways on foot: found on a thread of its own, each asking answered under its number.
-function startWalks(gameFolder: string | null): { find: (ask: WalkAsk) => Promise<WalkPath>; far: (ask: FarAsk) => Promise<Far>; stop: () => void } {
+function startWalks(gameFolder: string | null): { find: (ask: WalkAsk) => Promise<WalkPath>; far: (ask: FarAsk) => Promise<Far>; track: (ask: TrackAsk) => Promise<Floors>; stop: () => void } {
   const worker = startWalkWorker({ workerData: { gameFolder, shipped: navFolder() } })
-  const asked = new Map<number, (path: WalkPath | Far) => void>()
+  const asked = new Map<number, (path: WalkPath | Far | Floors) => void>()
   let asks = 0
-  worker.on('message', (told: { id: number; path: WalkPath | Far }) => {
+  worker.on('message', (told: { id: number; path: WalkPath | Far | Floors }) => {
     asked.get(told.id)?.(told.path)
     asked.delete(told.id)
   })
@@ -140,14 +140,15 @@ function startWalks(gameFolder: string | null): { find: (ask: WalkAsk) => Promis
     for (const answer of asked.values()) answer(null) // no line on the map, distances as the crow flies; the rest of the app goes on
     asked.clear()
   })
-  const ask = <T extends WalkPath | Far>(what: WalkAsk | FarAsk): Promise<T | null> =>
+  const ask = <T extends WalkPath | Far | Floors>(what: WalkAsk | FarAsk | TrackAsk): Promise<T | null> =>
     new Promise((answer) => {
-      asked.set(++asks, answer as (path: WalkPath | Far) => void)
+      asked.set(++asks, answer as (path: WalkPath | Far | Floors) => void)
       worker.postMessage({ id: asks, ask: what })
     })
   return {
     find: (what) => ask<WalkPath>(what),
     far: async (what) => (await ask<Far>(what)) ?? what.to.map(() => null),
+    track: (what) => ask<Floors>(what),
     stop: () => void worker.terminate(),
   }
 }
@@ -214,6 +215,19 @@ function createWindow(): void {
     win.setFullScreen(!win.isFullScreen())
     event.preventDefault()
   })
+
+  // A page that falls over (out of memory, a crash) is said in the record and loaded again, at most
+  // once a minute: never a window left empty, never one that loads again and again.
+  let reloadedAt = 0
+  win.webContents.on('render-process-gone', (_event, gone) => {
+    const again = gone.reason !== 'clean-exit' && Date.now() - reloadedAt > 60_000
+    record.say(`window: page gone (${gone.reason}, code ${gone.exitCode})${again ? ', loaded again' : ''}`)
+    if (!again || win.isDestroyed()) return
+    reloadedAt = Date.now()
+    win.webContents.reload()
+  })
+  win.webContents.on('unresponsive', () => record.say('window: page not answering'))
+  win.webContents.on('responsive', () => record.say('window: page answering again'))
 
   // In development the renderer comes from the dev server, in a build from disk.
   // TWINMAP_KIT opens the trial page of the basic controls instead of the app.
@@ -337,6 +351,11 @@ function createWindow(): void {
   asks('walk-far', (asked: unknown): Promise<Far> => {
     const ask = farAskFrom(asked)
     return ask ? walks.far(ask) : Promise.resolve([])
+  })
+  // The floor the character stands on, each time it moves: is something it can walk on over it.
+  asks('walk-track', (asked: unknown): Promise<Floors> => {
+    const ask = trackAskFrom(asked)
+    return ask ? walks.track(ask) : Promise.resolve(null)
   })
   ipcMain.handle('open-curseforge', (_event, addon: unknown) => shell.openExternal(pageOf(addon)))
   // Feedback: an issue on GitHub or a letter in the player's mail program, and no other address.

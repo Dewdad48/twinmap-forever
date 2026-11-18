@@ -3,6 +3,11 @@
   // character as an arrow. It follows the character until the player drags the map away.
   // Inside a dungeon or a raid it shows that instead: its rooms, its bosses, its entrance.
   import { TILES } from './web'
+  import type { Terrain } from './terrain3d'
+  import { Arrow3d } from './arrow3d'
+  import type { Inside3d } from './inside3d'
+  import { Names3d } from './names3d'
+  import { ARC, paintFixed, Pins3d, ROUTE } from './pins3d'
   import L from 'leaflet'
   import 'leaflet/dist/leaflet.css'
   import { onMount, untrack } from 'svelte'
@@ -13,14 +18,14 @@
   import { coloursFor, type Companion } from '../../shared/group'
   import { unitsOfPlace, unitsOfRect, type Point } from '../../shared/geo'
   import { addFix, BEHIND, PERIOD, whereAt, type Fix } from '../../shared/glide'
-  import { boxOf, buildingsAt, killedIn, nameOfBoss, piecesIn, RARE_BOSSES, roomPixels, yardsInside, YARDS_PER_UNIT, type Box, type InteriorMap, type Interiors, type Piece, type Yards } from '../../shared/inside'
+  import { boxOf, buildingsAt, killedIn, nameOfBoss, piecesIn, RARE_BOSSES, roomPixels, yardsInside, YARDS_PER_UNIT, type Box, type InteriorMap, type Interiors, type Piece, type UnderRoom, type Yards } from '../../shared/inside'
   import type { Continent, GameMap } from '../../shared/maps'
   import type { QuestPin } from '../../shared/quests'
   import { iconOf, serves, type FixedLayer, type FixedPin, type Travel } from '../../shared/services'
   import { pictureOfBlock, tileOfPicture } from '../../shared/pixels'
   import { WORLDS } from '../../shared/world'
   import { LAYER_GROUPS, layersFrom, type LayerId } from '../../shared/layers'
-  import { fitNames, tierRank, tierShows, type NameBox, type NameTier, type Place } from '../../shared/places'
+  import { fitNames, tierRank, tierShows, type Avoid, type NameBox, type NameTier, type Place } from '../../shared/places'
   import { wayTo, zoneAt, type Size } from '../../shared/point-label'
   import { fade, fly } from 'svelte/transition'
   import Glyph from './Glyph.svelte'
@@ -166,6 +171,11 @@
   }
   const boundsOfBox = ([u1, v1, u2, v2]: Box): L.LatLngBounds => L.latLngBounds(atYards({ u: u1, v: v1 }), atYards({ u: u2, v: v2 }))
   const WORLD_BOUNDS = L.latLngBounds([-256, 0], [0, 256])
+  // The map's size as Leaflet keeps it: the box itself, read at every move, made the page lay itself out again each time.
+  const frameSize = (): Size => {
+    const size = map!.getSize()
+    return { width: size.x, height: size.y }
+  }
 
   // A file of the map as the converter keeps it, deflated; null where there is none.
   const inflated = (url: string): Promise<Uint8Array<ArrayBuffer> | null> =>
@@ -258,7 +268,11 @@
   let rooms: L.Layer | undefined
   // The names written over the map, the most important first; layout() decides which of them show.
   const labels = L.layerGroup()
-  let named: { tier: NameTier; at: L.LatLng; marker: L.Marker; sizes: Record<string, [number, number]> }[] = []
+  let named: { tier: NameTier; text: string; at: L.LatLng; marker: L.Marker; sizes: Record<string, [number, number]> }[] = []
+  // The same names on the 3D view (names3d.ts), and what they keep clear of there: the buttons and the readout.
+  let names3d: Names3d | undefined
+  let avoid3d: Avoid[] = []
+  const names3dSet = (): void => names3d?.set(named.map((n) => ({ tier: n.tier, text: n.text, x: n.at.lng * YARDS_PER_UNIT, z: -n.at.lat * YARDS_PER_UNIT })))
   let places: Place[] = []
   const pins = L.layerGroup()
   const arrow = L.marker([0, 0], {
@@ -271,6 +285,23 @@
       html: pin('player'),
     }),
   })
+  // Under something it can walk on (a bridge, the floor above, the rock over a mine) the arrow
+  // fades, a little: the map shows what is on top. The walk worker follows the floor it stands on
+  // from point to point; an answer that comes after a newer point is dropped.
+  const BELOW = 0.6
+  let tracked = 0
+  let floorAt: number | null = null // the height the character stands at: on a bridge the 3D arrow is put there
+  $effect(() => {
+    const here = me
+    const asked = ++tracked
+    if (!here) return void (arrow.setOpacity(1), (floorAt = null))
+    void window.twinmap.walkTrack({ continent: here.continent, at: { x: here.units.x, y: here.units.y }, indoors: untrack(() => pos?.indoors === true) }).then((floors) => {
+      if (asked !== tracked) return
+      arrow.setOpacity(floors && floors.over > 0 ? BELOW : 1)
+      floorAt = floors?.z ?? null
+    })
+  })
+
   let turned = 0
   function turnTo(degrees: number): void {
     turned += ((((degrees - turned) % 360) + 540) % 360) - 180 // the short way round
@@ -286,9 +317,11 @@
     if (!map) return
     for (const layer of shown) layer.remove()
     shown = [
-      L.tileLayer(`${TILES}/${folder}/{z}/{x}/{y}.png`, { minZoom: 0, maxZoom: 9, maxNativeZoom: TOP_ZOOM - 2, bounds: WORLD_BOUNDS, errorTileUrl: BLANK, keepBuffer: 4, zIndex: 1, opacity }).addTo(map),
-      new BlockLayer({ world: folder, minZoom: TOP_ZOOM - 1.5, minNativeZoom: TOP_ZOOM - 1, maxNativeZoom: TOP_ZOOM, bounds: WORLD_BOUNDS, keepBuffer: 3, zIndex: 2, opacity }).addTo(map),
+      L.tileLayer(`${TILES}/${folder}/{z}/{x}/{y}.png`, { minZoom: 0, maxZoom: 9, maxNativeZoom: TOP_ZOOM - 2, bounds: WORLD_BOUNDS, errorTileUrl: BLANK, keepBuffer: 4, zIndex: 1, opacity }),
+      new BlockLayer({ world: folder, minZoom: TOP_ZOOM - 1.5, minNativeZoom: TOP_ZOOM - 1, maxNativeZoom: TOP_ZOOM, bounds: WORLD_BOUNDS, keepBuffer: 3, zIndex: 2, opacity }),
     ]
+    // Under the 3D view no ground is drawn: its tiles would be read and decoded for nothing.
+    if (!threeD) for (const layer of shown) layer.addTo(map)
   }
 
   // The shaded relief of the continent on show (main/heights.ts), over its ground and under the
@@ -298,7 +331,7 @@
   $effect(() => {
     relief?.remove()
     const world = WORLDS.find((w) => w.continent === continent)
-    relief = maps.length > 0 && layers.relief && !inside && world && map ? L.tileLayer(`${TILES}/${world.name}/shade/{z}/{x}/{y}.png`, { minZoom: 0, maxZoom: 9, maxNativeZoom: 6, bounds: WORLD_BOUNDS, errorTileUrl: BLANK, keepBuffer: 4, zIndex: 3, className: 'relief' }).addTo(map) : undefined
+    relief = maps.length > 0 && layers.relief && !inside && !threeD && world && map ? L.tileLayer(`${TILES}/${world.name}/shade/{z}/{x}/{y}.png`, { minZoom: 0, maxZoom: 9, maxNativeZoom: 6, bounds: WORLD_BOUNDS, errorTileUrl: BLANK, keepBuffer: 4, zIndex: 3, className: 'relief' }).addTo(map) : undefined
   })
 
   // Puts these rooms on the map, in place of the ones before.
@@ -379,7 +412,7 @@
     named = []
     const name = (tier: NameTier, text: string, at: L.LatLng): void => {
       const html = `<span>${text.replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`)}</span>`
-      named.push({ tier, at, sizes: {}, marker: L.marker(at, { interactive: false, keyboard: false, icon: L.divIcon({ className: `place ${tier}`, html, iconSize: [0, 0] }) }).addTo(labels) })
+      named.push({ tier, text, at, sizes: {}, marker: L.marker(at, { interactive: false, keyboard: false, icon: L.divIcon({ className: `place ${tier}`, html, iconSize: [0, 0] }) }).addTo(labels) })
     }
     const zones = maps.filter((m) => m.level === 'zone' && m.continent === continent && m.rect)
     // ponytail: a city is told from a region by the size of its map (Stormwind, the largest, is 2.0 million
@@ -387,6 +420,7 @@
     for (const m of zones) if ((m.rect!.maxX - m.rect!.minX) * (m.rect!.maxY - m.rect!.minY) > CITY_UNDER) name('region', m.name, boundsOf(m).getCenter())
     for (const p of places) if (p.continent === continent) name(p.kind, p.name, at(p))
     named.sort((a, b) => tierRank(a.tier) - tierRank(b.tier))
+    names3dSet()
     layout()
   }
 
@@ -418,6 +452,7 @@
       const r = el.getBoundingClientRect()
       return { left: r.left - frame.left, top: r.top - frame.top, right: r.right - frame.left, bottom: r.bottom - frame.top }
     })
+    avoid3d = [...clear]
     const me = view.hasLayer(arrow) ? view.latLngToContainerPoint(arrow.getLatLng()) : null
     if (me) clear.push({ left: me.x - 18, top: me.y - 18, right: me.x + 18, bottom: me.y + 18 })
     const shown = fitNames(boxes, clear)
@@ -615,8 +650,8 @@
       title: to.title,
       // The caller may know the zone better: where two maps overlap, the point alone does not tell.
       where: to.where ?? (found ? `${found.zone.name} ${found.place.x.toFixed(1)}, ${found.place.y.toFixed(1)}` : ''),
-      spot: view.latLngToContainerPoint(at(to.at)),
-      box: { width: holder.clientWidth, height: holder.clientHeight },
+      spot: spotOf(at(to.at)),
+      box: frameSize(),
       pin: found ? { m: found.zone.id, ...found.place } : null,
       ...(to.item && { item: to.item }), // an item found: its picture beside the name
     }
@@ -636,8 +671,8 @@
       title,
       notes,
       where: on ? `${on.zone.name} ${on.place.x.toFixed(1)}, ${on.place.y.toFixed(1)}` : '',
-      spot: map.latLngToContainerPoint(at(units)),
-      box: { width: holder.clientWidth, height: holder.clientHeight },
+      spot: spotOf(at(units)),
+      box: frameSize(),
       pin: on ? { m: on.zone.id, ...on.place } : null,
       dungeons,
       wing,
@@ -772,8 +807,142 @@
     }
   }
 
+  // The 3D view of the continent (terrain3d.ts; ui.md, section 4), over the 2D map, made the first
+  // time it is asked for. The 2D map stays under it and keeps the place: the view goes from one to
+  // the other at the same point and zoom, and what moves the map by itself (search, Follow, the
+  // continents, + and -) moves the 3D view with it.
+  let threeD = $state(false)
+  let terrainHost: HTMLDivElement
+  let pinsHost: HTMLDivElement
+  let compassHost: HTMLButtonElement
+  let terrain: Terrain | undefined
+  // What the 2D map lays on the ground, on the 3D view too (pins3d.ts).
+  let pins3d: Pins3d | undefined
+  // Where a point of the map is on screen, on the view on show: a label stays on its point in 3D too.
+  const spotOf = (ll: L.LatLng): L.Point => (threeD && pins3d ? pins3d.spot(ll) : map!.latLngToContainerPoint(ll))
+  let tilted = { polar: 0.9, azimuth: 0 } // how the 3D view was left
+  let zoomed2d = false // the 2D map was zoomed by itself, not to follow the 3D view
+  // Followed, the character stays in the middle: the wheel, a double click and two fingers zoom on it,
+  // not on the pointer, and Follow stays on.
+  $effect(() => {
+    const centre = following ? 'center' : true
+    if (map) Object.assign(map.options, { scrollWheelZoom: centre, doubleClickZoom: centre, touchZoom: centre })
+    terrain?.zoomAtCursor(!following)
+  })
+  let syncing = false // the 2D map is moved from the 3D view: not the other way round
+  const worldShown = (): string | undefined => (inside ? undefined : WORLDS.find((w) => w.continent === continent)?.name)
+  // Yards of ground from top to foot of the 2D map at a zoom, and back.
+  const seenAt = (z: number): number => (map!.getSize().y / 2 ** z) * YARDS_PER_UNIT
+  const zoomFor = (seen: number): number => Math.log2((map!.getSize().y * YARDS_PER_UNIT) / seen)
+  function lookAsTheMap(polar: number, azimuth: number, seen = seenAt(map!.getZoom())): void {
+    const c = map!.getCenter()
+    terrain!.look({ x: c.lng * YARDS_PER_UNIT, z: -c.lat * YARDS_PER_UNIT, seen, polar, azimuth })
+  }
+  // The 2D map goes where the 3D view looks, a few times a second: the pins of the place in view
+  // are there to be copied, and the readout tells it. Not the other way round meanwhile.
+  let tying = 0,
+    tiedTo = ''
+  function mapAsTheView(): void {
+    if (!terrain || !map) return
+    const now = terrain.looking(),
+      key = `${Math.round(now.x)} ${Math.round(now.z)} ${Math.round(now.seen)}`
+    if (key === tiedTo) return
+    tiedTo = key
+    syncing = true
+    map.setView(at({ x: now.x / YARDS_PER_UNIT, y: now.z / YARDS_PER_UNIT }), zoomFor(now.seen), { animate: false })
+    syncing = false
+  }
+  // For the trials on a phone: the address ending in #fps shows how many times a second the 3D view is drawn while it moves.
+  let counting = $state(location.hash === '#fps')
+  let fps = $state(0)
+  let counted = 0, since = 0, last = 0
+  function count(): void {
+    const now = performance.now()
+    if (now - last > 250) ((counted = 0), (since = now)) // the view was still: a new count
+    last = now
+    counted++
+    if (now - since >= 1000) ((fps = Math.round((counted * 1000) / (now - since))), (counted = 0), (since = now))
+  }
+  function onFrame(): void {
+    if (counting) count()
+    pins3d!.draw()
+    // The names: off with their layer; clear of the buttons and of the arrow, where it is on this view.
+    const me = map!.hasLayer(arrow) ? pins3d!.spot(arrow.getLatLng()) : null
+    names3d!.draw(layers.zones && !inside ? [...avoid3d, ...(me ? [{ left: me.x - 18, top: me.y - 18, right: me.x + 18, bottom: me.y + 18 }] : [])] : null)
+    if (labelled) {
+      const spot = spotOf(at(labelled.units))
+      if (spot.x !== labelled.spot.x || spot.y !== labelled.spot.y) labelled.spot = spot
+    }
+    tying ||= window.setTimeout(() => {
+      tying = 0
+      if (threeD) mapAsTheView()
+    }, 200)
+  }
+  // The rooms inside the ground of the continent on show, for the 3D view (inside3d.ts; under.json, main/caves.ts).
+  let inside3d: Inside3d | undefined
+  let underRooms: Record<string, UnderRoom[]> | undefined
+  let underOf = -1
+  function inside3dSet(): void {
+    const world = interiors?.maps.find((m) => m.kind === 'world' && m.id === continent)
+    if (!inside3d || !world || !underRooms || underOf === continent) return
+    underOf = continent
+    inside3d.set(world.pieces, underRooms[continent] ?? [])
+  }
+  $effect(() => {
+    void continent
+    untrack(inside3dSet)
+  })
+  async function view3d(on: boolean): Promise<void> {
+    const folder = worldShown()
+    if (on === threeD || !map || (on && !folder)) return
+    if (on) {
+      if (!terrain) {
+        const { Terrain } = await import('./terrain3d')
+        terrain ??= new Terrain(terrainHost, compassHost)
+        // For the trials (design/terrain3d): the view within reach of a script, when the page is told so.
+        if (localStorage.getItem('trial')) (window as unknown as { terrain3d: unknown }).terrain3d = terrain
+        terrain.onGrab = () => (following = false)
+        terrain.zoomAtCursor(!following)
+        const body = new Arrow3d(terrain)
+        terrain.onBefore = () => body.step(performance.now())
+        pins3d ??= new Pins3d(map, terrain, pinsHost, terrainHost, arrow, () => turned, body, () => floorAt)
+        names3d ??= new Names3d(terrain, pinsHost)
+        inside3d ??= new (await import('./inside3d')).Inside3d(terrain)
+        inside3dSet()
+        names3dSet()
+        terrain.onFrame = onFrame
+      }
+      threeD = true
+      for (const layer of shown) layer.remove()
+      terrain.show(folder!)
+      lookAsTheMap(0, 0)
+      terrain.start()
+      await terrain.turn(tilted.polar, tilted.azimuth)
+    } else if (terrain) {
+      const left = terrain.looking()
+      tilted = { polar: left.polar, azimuth: left.azimuth }
+      await terrain.turn(0, 0)
+      back2d()
+    }
+  }
+  // Straight to 2D, where the 3D view is looking.
+  function back2d(): void {
+    if (!terrain || !map) return
+    tiedTo = ''
+    mapAsTheView()
+    threeD = false
+    for (const layer of shown) layer.addTo(map)
+    terrain.stop()
+    pins3d?.clear()
+    names3d?.clear()
+  }
+  // Inside a dungeon there is no ground to show: back to 2D.
+  $effect(() => {
+    if (inside && untrack(() => threeD)) back2d()
+  })
+
   onMount(() => {
-    const made = L.map(holder, { zoomControl: false, crs: L.CRS.Simple, minZoom: 1, maxZoom: 9, zoomSnap: 0.5, zoomDelta: 0.5, wheelPxPerZoomLevel: 90, attributionControl: false, zoomAnimation: !still(), fadeAnimation: !still(), maxBounds: WORLD_BOUNDS.pad(0.2) })
+    const made = L.map(holder, { scrollWheelZoom: 'center', doubleClickZoom: 'center', touchZoom: 'center', zoomControl: false, crs: L.CRS.Simple, minZoom: 1, maxZoom: 9, zoomSnap: 0.5, zoomDelta: 0.5, wheelPxPerZoomLevel: 90, attributionControl: false, zoomAnimation: !still(), fadeAnimation: !still(), maxBounds: WORLD_BOUNDS.pad(0.2) })
     map = made
     made.setView([-128, 128], 2)
     pins.addTo(made)
@@ -781,6 +950,17 @@
     made.on('move', look)
     made.on('zoomend', layout)
     made.on('moveend', layoutSoon)
+    made.on('moveend', () => {
+      if (!threeD || syncing || !terrain) return
+      const folder = worldShown()
+      if (!folder) return back2d()
+      terrain.show(folder)
+      // The 3D view keeps its own distance, unless the 2D map was zoomed (+ and -): it moved only to follow.
+      const l = terrain.looking()
+      lookAsTheMap(l.polar, l.azimuth, zoomed2d ? undefined : l.seen)
+      zoomed2d = false
+    })
+    made.on('zoomend', () => (zoomed2d = !syncing))
     made.on('zoomstart', () => (zooming = true))
     made.on('zoomend', () => (zooming = false))
     made.on('zoomend', () => (zoom = made.getZoom()))
@@ -808,13 +988,13 @@
         where: found ? `${found.place.x.toFixed(1)}, ${found.place.y.toFixed(1)}` : '',
         spot: e.containerPoint,
         plain: true, // a bare point of the map: as a stop it is told from the others by its coordinates
-        box: { width: holder.clientWidth, height: holder.clientHeight },
+        box: frameSize(),
         pin: found ? { m: found.zone.id, ...found.place } : null,
       }
     })
     // The label stays on its point while the map moves under it.
     made.on('move zoom resize', () => {
-      if (labelled) Object.assign(labelled, { spot: made.latLngToContainerPoint(at(labelled.units)), box: { width: holder.clientWidth, height: holder.clientHeight } })
+      if (labelled) Object.assign(labelled, { spot: spotOf(at(labelled.units)), box: frameSize() })
     })
     void fetch(`${TILES}/maps.json`)
       .then((answer) => answer.json() as Promise<GameMap[]>)
@@ -921,26 +1101,7 @@
   const FixedPinMark = L.CircleMarker.extend({
     _updatePath(this: L.CircleMarker & { _renderer: { _ctx: CanvasRenderingContext2D }; _point: L.Point; _empty: () => boolean; options: { lozenge: boolean; fillColor: string; picture: HTMLImageElement } }) {
       if (this._empty()) return
-      const ctx = this._renderer._ctx, { x, y } = this._point, picture = this.options.picture
-      if (picture.naturalWidth) {
-        const size = this.options.lozenge ? 20 : 24
-        ctx.imageSmoothingQuality = 'high'
-        return void ctx.drawImage(picture, x - size / 2, y - size / 2, size, size)
-      }
-      ctx.beginPath()
-      if (this.options.lozenge) {
-        ctx.moveTo(x, y - 5.1)
-        ctx.lineTo(x + 5.1, y)
-        ctx.lineTo(x, y + 5.1)
-        ctx.lineTo(x - 5.1, y)
-        ctx.closePath()
-      } else ctx.rect(x - 6.25, y - 6.25, 12.5, 12.5)
-      ctx.fillStyle = this.options.fillColor
-      ctx.fill()
-      ctx.lineWidth = 1.5
-      ctx.lineJoin = 'round'
-      ctx.strokeStyle = '#000'
-      ctx.stroke()
+      paintFixed(this._renderer._ctx, this._point.x, this._point.y, this.options)
     },
   }) as unknown as new (at: L.LatLng, options: L.CircleMarkerOptions & { lozenge: boolean; picture: HTMLImageElement }) => L.CircleMarker
   const fixedGroup = L.layerGroup()
@@ -958,7 +1119,7 @@
     drawnFor = null
     if (!map || inside) return void fixedGroup.remove()
     fixedGroup.addTo(map)
-    const view = map.getBounds().pad(0.5), far = map.getZoom()
+    const view = map.getBounds().pad(threeD ? 2 : 0.5), far = map.getZoom() // the 3D view sees farther, to the fog
     drawnFor = { view, far }
     // What the label is open on is drawn even with its layers off: the search or a panel led there, and the line points at it.
     const here = labelled && labelled.continent === continent ? at(labelled.units) : null
@@ -1023,7 +1184,7 @@
     for (const [a, b] of travel.routes) {
       const from = travel.nodes[a], to = travel.nodes[b]
       if (!from || !to || from.continent !== continent || !serves(from, side) || !serves(to, side)) continue
-      L.polyline([at(from), at(to)], { color: '#7fc8ff', weight: 1.5, opacity: 0.6, interactive: false }).addTo(travelLayers.routes)
+      L.polyline([at(from), at(to)], { color: '#7fc8ff', weight: 1.5, opacity: 0.6, interactive: false, ...ROUTE }).addTo(travelLayers.routes)
     }
   })
   $effect(() => {
@@ -1051,8 +1212,8 @@
             continent: saved.continent,
             title: saved.name,
             where: found ? `${found.zone.name} ${found.place.x.toFixed(1)}, ${found.place.y.toFixed(1)}` : '',
-            spot: map.latLngToContainerPoint(at(saved.at)),
-            box: { width: holder.clientWidth, height: holder.clientHeight },
+            spot: spotOf(at(saved.at)),
+            box: frameSize(),
             pin: saved.pin && { ...saved.pin },
           }
         })
@@ -1163,8 +1324,8 @@
   $effect(() => {
     journeyLayer.clearLayers()
     const goal = journeyGoal
-    const dashes = (line: L.LatLng[], colour: string, opacity = 1): void => {
-      for (const [color, weight] of [['#000', 7.5], [colour, 4.5]] as const) L.polyline(line, { color, weight, opacity, dashArray: '9 13', lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(journeyLayer)
+    const dashes = (line: L.LatLng[], colour: string, opacity = 1, air = false): void => {
+      for (const [color, weight] of [['#000', 7.5], [colour, 4.5]] as const) L.polyline(line, { color, weight, opacity, dashArray: '9 13', lineCap: 'round', lineJoin: 'round', interactive: false, ...(air && ARC) }).addTo(journeyLayer)
     }
     // The legs after the one under way, and the one under way when it is no walk: fainter than the walk the character is on.
     ahead?.forEach((leg, i) => {
@@ -1181,7 +1342,7 @@
       for (const p of [...leg.points, null]) {
         if (p && p.continent === continent) run.push(at(p.at))
         else {
-          if (run.length > 1) dashes(run, colour, 0.85)
+          if (run.length > 1) dashes(run, colour, 0.85, leg.mode === 'flight' || leg.mode === 'zeppelin') // through the air: an arc on the 3D view
           run = []
         }
       }
@@ -1300,6 +1461,7 @@
       else layersOpen = false
     } else if (e.key === 'l' || e.key === 'L') layersOpen = !layersOpen
     else if (e.key === 'f' || e.key === 'F') follow()
+    else if (e.key === '3' && !inside) void view3d(!threeD)
     else if (e.target === holder && e.key.startsWith('Arrow')) following = false // moved by hand, like a drag
     else if (e.key === ' ' && e.target === holder && map) {
       e.preventDefault()
@@ -1329,14 +1491,23 @@
       .then((list) => {
         buried = list?.worlds
         showCaves()
+        return fetch(`${TILES}/under.json`)
+      })
+      .then((answer) => (answer.ok ? (answer.json() as Promise<{ worlds: Record<string, UnderRoom[]> }>) : undefined))
+      .then((list) => {
+        underRooms = list?.worlds
+        inside3dSet()
       })
       .catch(() => {})
   })
 </script>
 
-<svelte:window onkeydown={key} />
+<svelte:window onkeydown={key} onhashchange={() => (counting = location.hash === '#fps')} />
 
-<div class="map" bind:this={holder}></div>
+<div class="map" class:under={threeD} bind:this={holder}></div>
+<div class="terrain" class:on={threeD} bind:this={terrainHost}><div class="map pins3d" bind:this={pinsHost}></div></div>
+{#if counting && threeD}<p class="fps">{fps} fps</p>{/if}
+<button class="compass" class:on={threeD} bind:this={compassHost} tabindex={threeD ? 0 : -1} aria-hidden={!threeD} title="North up" aria-label="North up" onclick={() => terrain?.north()}></button>
 {#if labelled}
   {#key labelled.units}
     <PointLabel
@@ -1383,10 +1554,13 @@
     {#if inside}
       <span class="tag">{inside.name}</span>
     {/if}
-    {#each [0, 1] as const as which (which)}
+    {#each [1, 0] as const as which (which)}
       <button class="btn" aria-pressed={!inside && continent === which} onclick={() => choose(which)}>{NAMES[which]}</button>
     {/each}
     <button class="btn" aria-expanded={layersOpen} aria-controls="layers" title="Layers (L)" onclick={() => (layersOpen = !layersOpen)}>Layers</button>
+    {#if !inside}
+      <button class="view" role="switch" aria-checked={threeD} aria-label="3D view" title="2D or 3D view (3)" onclick={() => view3d(!threeD)}><i class="knob"></i><span class="two">2D</span><span class="three">3D</span></button>
+    {/if}
   </div>
   {#if layersOpen}
     <div class="menu layers" id="layers" role="group" aria-label="Layers" in:fly={drop()} out:fade={gone}>
@@ -1436,6 +1610,129 @@
     position: absolute;
     inset: 0;
     background: #000; /* the sea of the game's own pictures ends in black */
+  }
+
+  /* The 3D view lies over the 2D map, under the controls; hidden, it keeps its size. */
+  .terrain {
+    position: absolute;
+    inset: 0;
+    z-index: 1100;
+    visibility: hidden;
+  }
+  .terrain.on {
+    visibility: visible;
+  }
+  .terrain :global(canvas) {
+    display: block;
+  }
+  /* Under the 3D view the 2D map is not drawn: it keeps its pins for the view to copy, but its
+     thousands of elements made the page sort its layers out again at every frame of the view.
+     Not content-visibility: after a change of continent it left the browser with the styles of the
+     names and pins beside it never worked out again, so they stayed where they were. */
+  .map.under {
+    visibility: hidden;
+  }
+  /* The pins over the 3D view: the 2D map's look (.map), without its ground. */
+  .pins3d {
+    z-index: 1;
+    background: none;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .fps {
+    position: absolute;
+    left: 12px;
+    top: 124px;
+    z-index: 1200;
+    margin: 0;
+    padding: 2px 8px;
+    background: rgb(0 0 0 / 0.6);
+    color: #fff;
+    font: 14px monospace;
+    pointer-events: none;
+  }
+  /* The compass: bottom left, in 3D only; a click turns the north up. */
+  .compass {
+    position: absolute;
+    left: 12px;
+    bottom: calc(12px + var(--lift, 0px));
+    z-index: 1200;
+    width: 110px;
+    height: 110px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms;
+  }
+  .compass.on {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .compass :global(canvas) {
+    display: block;
+  }
+  /* The view switch: a dark box with 2D and 3D in it; a red block like the buttons lies on the one in use and slides to the other. */
+  .view {
+    position: relative;
+    display: flex;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #120b05;
+    border-radius: 4px;
+    cursor: pointer;
+    font: var(--t-label);
+    color: var(--bronze-500);
+    text-shadow: 0 1px 0 #000;
+    background: linear-gradient(#000, var(--stone-800));
+    box-shadow:
+      inset 0 0 0 1px var(--bronze-700),
+      inset 0 2px 4px #000,
+      0 2px 4px #000d;
+  }
+  .view:hover {
+    box-shadow:
+      inset 0 0 0 1px var(--bronze-500),
+      inset 0 2px 4px #000,
+      0 2px 4px #000d;
+  }
+  .view:focus-visible {
+    outline: none;
+    box-shadow:
+      inset 0 0 0 1px var(--bronze-500),
+      0 0 0 5px #000;
+  }
+  .view span {
+    position: relative;
+    z-index: 1;
+    width: 38px;
+    line-height: 30px;
+    text-align: center;
+    transition: color var(--quick);
+  }
+  .view .knob {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 38px;
+    height: 30px;
+    border-radius: 3px;
+    transition: transform 180ms ease;
+    background: linear-gradient(var(--red-top), var(--red-mid) 55%, var(--red-low));
+    box-shadow:
+      inset 0 1px 0 #ffb09a66,
+      inset 0 0 0 1px var(--bronze-400),
+      inset 0 -6px 8px #0005,
+      0 1px 3px #000;
+  }
+  .view[aria-checked='true'] .knob {
+    transform: translateX(38px);
+  }
+  .view[aria-checked='false'] .two,
+  .view[aria-checked='true'] .three {
+    color: var(--gold-pale);
   }
 
   /* The controls sit inside the frame, over its vignette. */
@@ -1492,13 +1789,10 @@
     overflow-y: auto;
   }
 
-  /* On a narrow map the buttons go under the zone and its coordinates, which they would cover. */
+  /* On a narrow map the buttons keep the top and the zone goes under them (App.svelte). */
   @container (max-width: 640px) {
-    .corner.top {
-      top: 84px;
-    }
-    .layers {
-      max-height: calc(100vh - 312px);
+    .fps {
+      top: 190px;
     }
   }
   /* The map draws its keyboard ring on the frame (App.svelte). */

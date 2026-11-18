@@ -6,7 +6,7 @@ import { afterAll, expect, test } from 'vitest'
 import { packHeights, SIDE } from '../shared/heights'
 import type { Interiors, Piece } from '../shared/inside'
 import { BLOCK_YARDS } from '../shared/world'
-import { CAVES_FILE, makeCaves } from './caves'
+import { CAVES_FILE, makeCaves, makeUnder } from './caves'
 import { heightsFile } from './heights'
 
 const base = mkdtempSync(join(tmpdir(), 'twinmap-caves-test-'))
@@ -30,4 +30,17 @@ test('the buildings under the ground are listed by continent, once', () => {
   expect(JSON.parse(readFileSync(join(base, CAVES_FILE), 'utf8')).worlds).toEqual({ 0: [3] })
   // Made already: the file is what is given back, whatever the rooms say now.
   expect(makeCaves(base, { ...inside, maps: [] })).toEqual({ 0: [3] })
+})
+
+test('the rooms inside the ground, each with its floor from the walking grid and the ground over it', () => {
+  // The mine's box goes down to 74, one walks at 76; nothing is walked in the house, and it is not under the ground.
+  expect(makeUnder(base, inside, { 0: [3] }, () => [76, 300])).toEqual({ 0: [[0, 76, 24]] })
+})
+
+test('a room the grid tells nothing of is as far over its bottom as the rooms of its building', () => {
+  // Two rooms of the mine side by side: one walked 2 yards over the bottom of its box, the other not walked at all.
+  const beside: Piece = { ...room(3, 80), file: 2, u: u + 40 }
+  const two: Interiors = { ...inside, maps: [{ ...inside.maps[0]!, pieces: [room(3, 80), beside] }] }
+  rmSync(join(base, 'under.json'))
+  expect(makeUnder(base, two, { 0: [3] }, (_continent, at) => (at < u + 20 ? [76] : []))).toEqual({ 0: [[0, 76, 24], [1, 76, 24]] })
 })
