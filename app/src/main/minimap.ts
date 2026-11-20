@@ -150,8 +150,12 @@ export interface InsideReport {
   picture?: number
   across?: number
   level?: number
+  /** The place told and how like the picture the minimap is there: under `SURE` when it is only followed from the one of a moment ago. */
+  place?: Found
   /** Milliseconds since a place was last found, or since the dungeon was entered when none was yet. */
   lostFor?: number
+  /** The mouse was over the minimap a moment ago, as the addon tells. */
+  hid?: boolean
 }
 
 /**
@@ -197,7 +201,7 @@ export function startInside(tilesFolder: () => string | null, mosaics: (folder: 
         floors = (folder ? mosaics(folder, dungeon) : []).map(levelsOf)
       }
       const widths = widthsOf(mini)
-      const said = { dungeon, pictures: floors.length, zoom: mini.zoom, size: mini.size, widths, lostFor: now - (foundAt || enteredAt) }
+      const said = { dungeon, pictures: floors.length, zoom: mini.zoom, size: mini.size, widths, lostFor: now - (foundAt || enteredAt), ...(mini.hid === true ? { hid: true } : {}) }
       if (!floors.length) return (report = { ...said, why: 'no rooms' }), null
       const known = last && now - last.at <= KEPT ? last : null
       if (!known && now - searchedAt < LOST_FOR) return null
@@ -250,7 +254,7 @@ export function startInside(tilesFolder: () => string | null, mosaics: (folder: 
       last = { u: place.u, v: place.v, facing, at: now, level, picture, across }
       lostTries = 0
       foundAt = now
-      report = { ...said, scores, picture, across, level, lostFor: 0 }
+      report = { ...said, scores, picture, across, level, place: { u: place.u, v: place.v, score: place.score }, lostFor: 0 }
       return fresh()
     },
   }

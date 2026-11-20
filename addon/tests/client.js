@@ -13,6 +13,7 @@ const STUB = `
     printed[#printed + 1] = table.concat(parts, " ")
   end
   SlashCmdList = {}
+  unpack = unpack or table.unpack -- the game's Lua has it as a global
   -- The tests read the strip at full contrast with nothing between blocks, as a player may set it;
   -- the values a new install starts with are checked in trials.test.js.
   TwinmapForeverDB = { on = 50, neg = 50, amp = 255, idle = "hide" }
@@ -48,7 +49,8 @@ const STUB = `
     return "Catubbio", "Sucameli"
   end
   function UnitClass(unit)
-    if unit == "player" then return GAME.class, GAME.class end
+    local ids = { WARRIOR = 1, PALADIN = 2, HUNTER = 3, ROGUE = 4, PRIEST = 5, SHAMAN = 7, MAGE = 8, WARLOCK = 9, DRUID = 11 }
+    if unit == "player" then return GAME.class, GAME.class, ids[GAME.class] end
     local other = GAME.party and GAME.party[unit]
     return other and other.class, other and other.class
   end
@@ -111,7 +113,15 @@ const STUB = `
   -- An open trainer: GAME.trainer = { npc = 5174, trade = true, lines = { { name, kind, spell, cost, level, skill, filter }, ... } },
   -- filter "available", "unavailable" or "used"; the window shows a line only while its filter is on (GAME.filters, the
   -- game's own choice: available only). The spell is told only by a tooltip set on the line.
-  function UnitGUID(unit) if unit == "npc" and GAME.trainer then return "Creature-0-5250-0-11-" .. GAME.trainer.npc .. "-0000ABCDEF" end end
+  -- GAME.target, GAME.mouseover: the GUID of what is targeted or under the mouse. GAME.loot: the GUIDs the loot window says it comes from.
+  function UnitGUID(unit)
+    if unit == "npc" and GAME.trainer then return "Creature-0-5250-0-11-" .. GAME.trainer.npc .. "-0000ABCDEF" end
+    if unit == "target" or unit == "mouseover" then return GAME[unit] end
+  end
+  function UnitIsDead(unit) return unit == "target" and GAME.target ~= nil and GAME.dead == true end
+  function UnitClassification(unit) if unit == "target" and GAME.target then return GAME.classification or "normal" end end
+  function GetNumLootItems() return GAME.loot and #GAME.loot or 0 end
+  function GetLootSourceInfo(slot) if GAME.loot and GAME.loot[slot] then return GAME.loot[slot], 1 end end
   local function shown()
     local out = {}
     for _, l in ipairs(GAME.trainer and GAME.trainer.lines or {}) do if (GAME.filters or { available = true })[l[7]] then out[#out + 1] = l end end
@@ -129,6 +139,7 @@ const STUB = `
     GAME.filters[f] = on or nil
   end
   function IsTradeskillTrainer() return GAME.trainer and GAME.trainer.trade == true end
+  function UnitReaction(unit) if unit == "npc" and GAME.trainer then return GAME.trainer.standing or 4 end end
   C_TradeSkillUI = {
     GetAllRecipeIDs = function() local out = {} for id in pairs(GAME.trade and GAME.trade.recipes or {}) do out[#out + 1] = id end table.sort(out) return out end,
     GetRecipeInfo = function(id) return { learned = GAME.trade.recipes[id] } end,
@@ -403,6 +414,20 @@ const STUB = `
   end
   function T_click(name) return rawget(_G[name], "OnClick")(_G[name]) end
   function T_slide(name, value) return rawget(_G[name], "OnValueChanged")(_G[name], tonumber(value)) end
+  -- The saved settings as the game writes them to their file, at logout or /reload.
+  local function saved(v, pad)
+    if type(v) == "string" then return (string.format("%q", v):gsub("\\\\\\n", "\\\\n")) end
+    if type(v) ~= "table" then return tostring(v) end
+    local out, n = {}, #v
+    for i = 1, n do out[#out + 1] = pad .. "\\t" .. saved(v[i], pad .. "\\t") .. ", -- [" .. i .. "]" end
+    for k, x in pairs(v) do
+      if not (math.type(k) == "integer" and k >= 1 and k <= n) then
+        out[#out + 1] = pad .. "\\t[" .. (type(k) == "string" and string.format("%q", k) or tostring(k)) .. "] = " .. saved(x, pad .. "\\t") .. ","
+      end
+    end
+    return "{\\n" .. table.concat(out, "\\n") .. (#out > 0 and "\\n" or "") .. pad .. "}"
+  end
+  function T_saved() return "\\nTwinmapForeverDB = " .. saved(TwinmapForeverDB, "") .. "\\n" end
   function T_printed() return table.concat(printed, "\\n") end
   function T_ns(key) return tostring(ns[key]) end
 `;
@@ -462,6 +487,8 @@ function loadAddon(dir, { addons } = {}) {
   });
 
   if (lauxlib.luaL_dostring(L, to_luastring(STUB)) !== lua.LUA_OK) throw new Error(to_jsstring(lua.lua_tostring(L, -1)));
+  // The game draws its random numbers anew at each start; this VM would give the same ones every time.
+  lauxlib.luaL_dostring(L, to_luastring(`math.randomseed(${Date.now() % 2 ** 31 ^ (Math.random() * 2 ** 31)})`));
   const run = () => {
     for (const f of toc.files) call('T_load', name, fs.readFileSync(path.join(dir, f), 'utf8'), f);
   };
@@ -479,6 +506,8 @@ function loadAddon(dir, { addons } = {}) {
     slots: () => Number(call('T_slots')),
     slash: (text) => call('T_slash', text),
     printed: () => call('T_printed'),
+    // The file of saved settings the game would write now.
+    saved: () => call('T_saved'),
     ns: (key) => call('T_ns', key),
     lua: (code) => call('T_lua', code),
     click: (name) => call('T_click', name),

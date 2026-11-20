@@ -82,6 +82,14 @@
               {/if}
             </div>
           </section>
+          <!-- The participation programme: the words approved with its notice (site/privacy.html, "participation"). -->
+          <section class="group">
+            <h2 class="band">Help improve Twinmap</h2>
+            <div class="in">
+              <label class="choice"><input type="checkbox" class="check" checked={setup.participate === true} onchange={(e) => window.twinmap.setParticipate(e.currentTarget.checked)} />Share anonymous data about the world of Forever</label>
+              <p class="hint">Off unless you turn it on. Twinmap sends what helps it find you better inside dungeons and fill in what the map lacks: the minimap inside dungeons, where bosses and rares die, the doors of dungeons, what trainers teach, the creatures, objects and quests that Questie does not know, and Twinmap's own errors. Never a name, a character, an account, the chat, or the rest of your screen. Turn it off and nothing more is sent. <button class="link" onclick={() => void window.twinmap.openFeedback('participation', '')}>What is sent, in full</button></p>
+            </div>
+          </section>
         {/if}
       </div>
 
@@ -229,6 +237,15 @@
     margin: 0;
     font: var(--t-small);
     color: var(--text-dim);
+  }
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--gold);
+    text-decoration: underline;
+    cursor: pointer;
   }
   .wrong {
     margin: 0;

@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, screen, shell } fr
 import { randomBytes } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
+import { hostname, userInfo } from 'node:os'
 import { join } from 'node:path'
 import { keep, keptFrom } from '../shared/kept'
 import { burnt } from '../shared/hdr'
@@ -19,12 +20,16 @@ import { tilesLine, type TilesStatus } from '../shared/tiles-status'
 import { placeWindow, WINDOW } from '../shared/window'
 import { findGameWindow, programOf } from './capture'
 import { readHdr } from './hdr'
-import { gameFolderFrom, registryInstallPath } from './client-files'
+import { gameFolderFrom, installedBuild, registryInstallPath } from './client-files'
 import { homeAddress, LAN_PORT, startLan, type Lan, type Served } from './lan'
 import { startLink } from './link'
+import { startBosses } from './bosses'
+import { sendLog, startGameLog } from './gamelog'
+import { describe, fault, startHealth } from './health'
 import { startLog } from './log'
-import type { Answer, Asked, Sources } from './questie-worker'
+import type { Answer, Asked, Placed, Sources } from './questie-worker'
 import startQuestieWorker from './questie-worker?nodeWorker'
+import { gameLocale, sendSamples, startSamples } from './samples'
 import { addonHearsFonts, addonsFolder, readSettings, setupStatus, writeSettings } from './setup'
 import { hear, installChannel, removeSlots, send as sendSignal, sendOld, sentParts } from './signal'
 import { servedFile } from './tiles'
@@ -63,11 +68,15 @@ function startTiles(gameFolder: string | null): { status: () => TilesStatus; ite
   // The picture of an item, or of a spell by its file, the folder does not have yet is made by the worker, which has the game's archive (item-icons.ts).
   const items = new Map<string, ((made: boolean) => void)[]>()
   worker.on('message', (told: TilesStatus | { asked: string; made: boolean }) => {
-    if (!('asked' in told)) return void (status = told)
+    if (!('asked' in told)) {
+      if (told.state === 'failed') fault(`map: ${told.message}`)
+      return void (status = told)
+    }
     for (const answer of items.get(told.asked) ?? []) answer(told.made)
     items.delete(told.asked)
   })
   worker.on('error', (e) => {
+    fault(`map: worker stopped: ${describe(e)}`)
     status = { state: 'failed', message: e instanceof Error ? e.message : String(e) }
     for (const answers of items.values()) for (const answer of answers) answer(false)
     items.clear()
@@ -84,24 +93,35 @@ function startTiles(gameFolder: string | null): { status: () => TilesStatus; ite
 
 // The quests on the map: the player's QuestieDB is opened once, and asked for the pins of what
 // Questie shows each time the addon tells something new. tell: called with every answer.
-function startQuests(gameFolder: string | null, tell: (status: QuestsStatus) => void): { show: (section: unknown, log?: unknown) => void; search: (typed: string) => Promise<Found[]>; sources: (item: number) => Promise<ItemSources>; stop: () => void } {
+function startQuests(
+  gameFolder: string | null,
+  tell: (status: QuestsStatus) => void,
+): { show: (section: unknown, log?: unknown) => void; search: (typed: string) => Promise<Found[]>; sources: (item: number) => Promise<ItemSources>; placed: (asks: [string, number][]) => Promise<boolean[]>; stop: () => void } {
   const NONE: ItemSources = { sold: [], drops: [], found: [] }
-  if (!gameFolder) return { show: () => {}, search: () => Promise.resolve([]), sources: () => Promise.resolve(NONE), stop: () => {} }
+  const ALL = (asks: [string, number][]): Promise<boolean[]> => Promise.resolve(asks.map(() => true))
+  if (!gameFolder) return { show: () => {}, search: () => Promise.resolve([]), sources: () => Promise.resolve(NONE), placed: ALL, stop: () => {} }
   const worker = startQuestieWorker({ workerData: { gameFolder } })
   // A search waits for the answer that carries its number.
-  const asked = new Map<number, (found: Found[]) => void>(), askedSources = new Map<number, (sources: ItemSources) => void>()
+  const asked = new Map<number, (found: Found[]) => void>(), askedSources = new Map<number, (sources: ItemSources) => void>(), askedPlaced = new Map<number, { answer: (placed: boolean[]) => void; fail: (why: Error) => void }>()
+  let dead = false
   let searches = 0
   const post = (message: Asked): void => worker.postMessage(message)
-  worker.on('message', (told: QuestsStatus | Answer | Sources) => {
+  worker.on('message', (told: QuestsStatus | Answer | Sources | Placed) => {
+    if ('placed' in told) return void (askedPlaced.get(told.id)?.answer(told.placed), askedPlaced.delete(told.id))
     if ('sources' in told) return void (askedSources.get(told.id)?.(told.sources), askedSources.delete(told.id))
     if (!('found' in told)) return tell(told)
     asked.get(told.id)?.(told.found)
     asked.delete(told.id)
   })
-  worker.on('error', () => {
+  worker.on('error', (e) => {
+    fault(`quests: worker stopped: ${describe(e)}`)
     tell({ questie: null, pins: [], fixed: [] }) // no quests on the map; the rest of the app goes on
     for (const answer of asked.values()) answer([])
     for (const answer of askedSources.values()) answer(NONE)
+    // What QuestieDB has cannot be told: the sessions wait in the game's file for the app to open again.
+    dead = true
+    for (const { fail } of askedPlaced.values()) fail(new Error('QuestieDB could not be read'))
+    askedPlaced.clear()
     asked.clear()
     askedSources.clear()
   })
@@ -125,6 +145,12 @@ function startQuests(gameFolder: string | null, tell: (status: QuestsStatus) => 
         askedSources.set(++searches, answer)
         post({ sources: item, id: searches })
       }),
+    placed: (asks) =>
+      new Promise((answer, fail) => {
+        if (dead) return fail(new Error('QuestieDB could not be read'))
+        askedPlaced.set(++searches, { answer, fail })
+        post({ placed: asks, id: searches })
+      }),
     stop: () => void worker.terminate(),
   }
 }
@@ -138,7 +164,8 @@ function startWalks(gameFolder: string | null): { find: (ask: WalkAsk) => Promis
     asked.get(told.id)?.(told.path)
     asked.delete(told.id)
   })
-  worker.on('error', () => {
+  worker.on('error', (e) => {
+    fault(`walk: worker stopped: ${describe(e)}`)
     for (const answer of asked.values()) answer(null) // no line on the map, distances as the crow flies; the rest of the app goes on
     asked.clear()
   })
@@ -157,6 +184,9 @@ function startWalks(gameFolder: string | null): { find: (ask: WalkAsk) => Promis
 
 // The app's record of what happened to it, for the player to copy into a report.
 const record = startLog(join(app.getPath('userData'), 'twinmap.log'))
+// What falls over in the main process goes in the record, and in the reports of the app's health (health.ts).
+process.on('uncaughtExceptionMonitor', (e, origin) => fault(`${origin}: ${describe(e)}`))
+process.on('unhandledRejection', (why) => fault(`unhandled rejection: ${describe(why)}`))
 // Every send to the game goes in the record: its number, the parts it changes by kind (the name of
 // a mark holds its place, which the record does not keep), and how it goes: in how many fonts, or,
 // to an addon from before the fonts carried everything, in the font or in a slot.
@@ -223,12 +253,18 @@ function createWindow(): void {
   let reloadedAt = 0
   win.webContents.on('render-process-gone', (_event, gone) => {
     const again = gone.reason !== 'clean-exit' && Date.now() - reloadedAt > 60_000
-    record.say(`window: page gone (${gone.reason}, code ${gone.exitCode})${again ? ', loaded again' : ''}`)
+    const line = `window: page gone (${gone.reason}, code ${gone.exitCode})${again ? ', loaded again' : ''}`
+    if (gone.reason === 'clean-exit') record.say(line)
+    else fault(line)
     if (!again || win.isDestroyed()) return
     reloadedAt = Date.now()
     win.webContents.reload()
   })
-  win.webContents.on('unresponsive', () => record.say('window: page not answering'))
+  win.webContents.on('unresponsive', () => fault('window: page not answering'))
+  // An error the page did not catch, as its console tells it; not the pictures it could not find, which are many and expected.
+  win.webContents.on('console-message', (e) => {
+    if (e.level === 'error' && e.message.startsWith('Uncaught')) fault(`page: ${e.message.split('\n')[0]}`)
+  })
   win.webContents.on('responsive', () => record.say('window: page answering again'))
 
   // In development the renderer comes from the dev server, in a build from disk.
@@ -237,13 +273,29 @@ function createWindow(): void {
   if (devUrl) void win.loadURL(`${devUrl}#${hash}`)
   else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash })
 
-  const link = startLink(() => {
-    const made = tiles.status()
-    return made.state === 'ready' ? made.folder : null
-  })
   const settingsFile = join(app.getPath('userData'), 'settings.json')
   const settings = readSettings(settingsFile)
   let gameFolder = findGameFolder(settings.gameFolder)
+  // The participation programme: with the choice on, the samples of a run in a dungeon are sent when the
+  // character leaves it. With it off nothing is kept and nothing is sent. TWINMAP_SAMPLES, for trials, names another address.
+  const participates = (): boolean => settings.participate === true
+  const samples = startSamples(participates)
+  const bosses = startBosses(participates, app.getVersion()) // where the bosses die, sent at the same moment (bosses.ts)
+  const link = startLink(
+    () => {
+      const made = tiles.status()
+      return made.state === 'ready' ? made.folder : null
+    },
+    (report, seen, own, now) => {
+      const run = samples.take(report, seen, own, now), killed = bosses.take(report, now)
+      if (!(run || killed) || !gameFolder) return
+      const build = installedBuild(gameFolder)?.version, locale = gameLocale(gameFolder)
+      if (!build || !locale) return record.say('samples: not sent, the build or the language of the game is not known')
+      const said = { app: app.getVersion(), build, locale }
+      if (run) void sendSamples(run, said, participates, process.env.TWINMAP_SAMPLES).then((sent) => record.say(`samples: ${sent} of ${run.samples.length} sent`))
+      if (killed) void sendLog([killed], said, participates, process.env.TWINMAP_SAMPLES?.replace(/sample$/, 'log')).then((sent) => record.say(`bosses: ${sent.length ? 'sent' : 'not sent'}`))
+    },
+  )
   let tiles = startTiles(gameFolder)
   // The pins go to the window when they change, and once more when its page has loaded.
   let questsNow: QuestsStatus = { questie: null, pins: [] }
@@ -253,6 +305,31 @@ function createWindow(): void {
     lan?.tell('quests', questsNow)
   }
   let quests = startQuests(gameFolder, tellQuests)
+  // The addon's log of the participation programme, read from the settings the game saves (gamelog.ts).
+  const gameLog = startGameLog(
+    () => gameFolder,
+    join(app.getPath('userData'), 'log-sent.json'),
+    () => {
+      const build = gameFolder && installedBuild(gameFolder)?.version, locale = gameFolder && gameLocale(gameFolder)
+      return build && locale ? { app: app.getVersion(), build, locale } : null
+    },
+    participates,
+    record.say,
+    process.env.TWINMAP_SAMPLES?.replace(/sample$/, 'log'),
+    (asks) => quests.placed(asks), // what QuestieDB has with a place is not sent
+  )
+  // The app's health, for the same programme: its errors and the times of its looks at the minimap (health.ts).
+  const health = startHealth(
+    participates,
+    () => {
+      const build = gameFolder && installedBuild(gameFolder)?.version, locale = gameFolder && gameLocale(gameFolder)
+      return build && locale ? { app: app.getVersion(), build, locale } : null
+    },
+    (): [string, string][] => [...(gameFolder ? [[gameFolder, '<game>'] as [string, string]] : []), [app.getPath('userData'), '<data>'], [app.getAppPath(), '<app>'], [app.getPath('temp'), '<temp>'], [app.getPath('home'), '<home>']],
+    () => [userInfo().username, hostname(), ...Object.keys(sheets).flatMap((key) => key.split(' '))],
+    record.say,
+    process.env.TWINMAP_SAMPLES?.replace(/sample$/, 'errors'),
+  )
   let walks = startWalks(gameFolder)
   // A file of the map, for the window and for a phone on the home network alike.
   // The pictures of the characters (shared/portrait.ts): a PNG each beside the settings, named by the letters of the character's name.
@@ -411,6 +488,18 @@ function createWindow(): void {
     writeSettings(settingsFile, settings)
     turnLan(settings.lan)
     setup = lookSetup()
+  })
+  ipcMain.handle('set-participate', (_event, on: unknown) => {
+    settings.participate = on === true
+    writeSettings(settingsFile, settings)
+    setup = lookSetup()
+    // The addon keeps its log only after a yes, and lets go of it at a no: told at once, and again at every start (readyChannel).
+    if (!gameFolder || !channel) return
+    try {
+      send(addonsFolder(gameFolder), { log: participates() }, addonHearsFonts(gameFolder))
+    } catch {
+      // the way to the game is not there: it is told at the next start
+    }
   })
   let setup = lookSetup()
   // The way back to the game: once the addon is there, the bank of font names and the slots go next
@@ -603,7 +692,8 @@ function createWindow(): void {
     // Once the way is there, the addon is told that this app was just opened and has heard nothing yet:
     // a game already running then sends everything again at once. With it goes the version of this
     // app, which is the newest the addon can be: an older addon says so in the game's chat.
-    // Small enough to ride the font.
+    // Small enough to ride the font. And whether the addon is to keep its log (Log.lua): the
+    // player's choice, told again at every start, since it may have changed with the game closed.
     // The slots are for an addon from before the fonts carried everything. Beside one of today they
     // are thirty folders nothing loads: taken away, with the game closed, since a game that started
     // with an older addon may still load one.
@@ -613,7 +703,7 @@ function createWindow(): void {
       if (gone) record.say(`took away ${gone} slot folders the addon no longer needs`)
     }
     channel = installChannel(addons, !fonts)
-      .then(() => void send(addons, { sync: Date.now(), latest: app.getVersion(), sheet: heldOf(sheets) }, addonHearsFonts(gameFolder!)))
+      .then(() => void send(addons, { sync: Date.now(), latest: app.getVersion(), sheet: heldOf(sheets), log: participates() }, addonHearsFonts(gameFolder!)))
       .then(() => (marksTimer ??= setTimeout(sendMarks, MARKS_WAIT)))
       .catch(() => {})
   }
@@ -699,6 +789,7 @@ function createWindow(): void {
       }
     }
     quests.show(snapshot.state.sections.questie, snapshot.state.sections.quests)
+    bosses.kills(snapshot.state.sections.kills, Date.now())
     takeSheet(snapshot.state.sections.sheet)
     lookPortrait(snapshot.state, Date.now())
     win.webContents.send('link', snapshot)
@@ -796,11 +887,14 @@ function createWindow(): void {
     ipcMain.removeHandler('open-feedback')
     ipcMain.removeHandler('set-on-top')
     ipcMain.removeHandler('set-lan')
+    ipcMain.removeHandler('set-participate')
     ipcMain.removeHandler('save-portrait')
     for (const name of Object.keys(calls)) ipcMain.removeHandler(name)
     lan?.stop()
     if (marksTimer) clearTimeout(marksTimer)
     link.stop()
+    gameLog.stop()
+    health.stop()
     tiles.stop()
     quests.stop()
     walks.stop()

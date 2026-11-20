@@ -23,6 +23,8 @@ export interface Settings {
   lan?: boolean
   /** The code those devices must hold. Made once, so an address saved on a phone keeps working. */
   lanCode?: string
+  /** The participation programme (Help improve Twinmap): its data is sent only when true. Missing until the player answers, then kept as said. */
+  participate?: boolean
 }
 
 /** The settings as they were saved; nothing where the file is missing or is not ours. */
@@ -30,12 +32,13 @@ export function readSettings(file: string): Settings {
   try {
     const read: unknown = JSON.parse(readFileSync(file, 'utf8'))
     if (typeof read !== 'object' || !read) return {}
-    const { gameFolder, setupDone, onTop, lan, lanCode } = read as Record<string, unknown>
+    const { gameFolder, setupDone, onTop, lan, lanCode, participate } = read as Record<string, unknown>
     return {
       ...(typeof gameFolder === 'string' ? { gameFolder } : {}),
       ...(setupDone === true ? { setupDone } : {}),
       ...(onTop === true ? { onTop } : {}),
       ...(lan === true ? { lan } : {}),
+      ...(typeof participate === 'boolean' ? { participate } : {}),
       ...(typeof lanCode === 'string' && /^[\w-]{8,64}$/.test(lanCode) ? { lanCode } : {}),
     }
   } catch {
@@ -79,5 +82,6 @@ export function setupStatus(gameFolder: string | null, settings: Settings, versi
     done: settings.setupDone === true,
     version,
     onTop: settings.onTop === true,
+    participate: settings.participate ?? null,
   }
 }
