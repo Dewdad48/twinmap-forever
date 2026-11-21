@@ -834,6 +834,18 @@
   // Where a point of the map is on screen, on the view on show: a label stays on its point in 3D too.
   const spotOf = (ll: L.LatLng): L.Point => (threeD && pins3d ? pins3d.spot(ll) : map!.latLngToContainerPoint(ll))
   let tilted = { polar: 0.9, azimuth: 0 } // how the 3D view was left
+  // Heading up: while the 3D view follows the character it turns with it, the way it faces at the top. The compass
+  // or N turns it on and off; a drag lets the character go, and the view stays as it was turned until Follow.
+  // headingUp is the choice, kept; turning is what the view does now, and what the compass shows: a click on a
+  // compass gone dark after a drag turns with the character again, it does not turn the choice off.
+  let headingUp = $state(localStorage.getItem('headingUp') === '1')
+  const turning = $derived(headingUp && following)
+  function setHeadingUp(on: boolean): void {
+    headingUp = on
+    localStorage.setItem('headingUp', on ? '1' : '0')
+    if (on && !following) follow()
+    else if (!on) void terrain?.north()
+  }
   let zoomed2d = false // the 2D map was zoomed by itself, not to follow the 3D view
   // Followed, the character stays in the middle: the wheel, a double click and two fingers zoom on it,
   // not on the pointer, and Follow stays on.
@@ -917,7 +929,13 @@
         terrain.onGrab = () => (following = false)
         terrain.zoomAtCursor(!following)
         const body = new Arrow3d(terrain)
-        terrain.onBefore = () => body.step(performance.now())
+        terrain.onBefore = () => {
+          const moved = body.step(performance.now())
+          // Heading up: the view turns as the arrow does, so the arrow stays pointing up. Clockwise from north there,
+          // anticlockwise for OrbitControls.
+          terrain!.heading = turning && body.pointing !== null ? (-body.pointing * Math.PI) / 180 : null
+          return moved
+        }
         pins3d ??= new Pins3d(map, terrain, pinsHost, terrainHost, arrow, () => turned, body, () => floorAt)
         names3d ??= new Names3d(terrain, pinsHost)
         inside3d ??= new (await import('./inside3d')).Inside3d(terrain)
@@ -946,6 +964,7 @@
     threeD = false
     for (const layer of shown) layer.addTo(map)
     terrain.stop()
+    terrain.heading = null
     pins3d?.clear()
     names3d?.clear()
   }
@@ -1494,7 +1513,7 @@
     else if (arrow.getLatLng().lat || arrow.getLatLng().lng) place()
   })
 
-  // L opens and closes Layers, F turns Follow on and off, M sends the map to the other side of the panel, Esc closes the label and then Layers; with the
+  // L opens and closes Layers, F turns Follow on and off, N (in 3D) turns the view with the character, M sends the map to the other side of the panel, Esc closes the label and then Layers; with the
   // keyboard on the map, the space bar puts the label on its middle. Not while Settings lie over the map.
   function key(e: KeyboardEvent): void {
     if (holder.closest('[inert]')) return
@@ -1506,6 +1525,7 @@
     else if (e.key === 'f' || e.key === 'F') follow()
     else if (e.key === 'm' || e.key === 'M') setMapRight(!sides.mapRight)
     else if (e.key === '3' && !inside) void view3d(!threeD)
+    else if ((e.key === 'n' || e.key === 'N') && threeD) setHeadingUp(!turning)
     else if (e.target === holder && e.key.startsWith('Arrow')) following = false // moved by hand, like a drag
     else if (e.key === ' ' && e.target === holder && map) {
       e.preventDefault()
@@ -1551,7 +1571,7 @@
 <div class="map" class:under={threeD} bind:this={holder}></div>
 <div class="terrain" class:on={threeD} bind:this={terrainHost}><div class="map pins3d" bind:this={pinsHost}></div></div>
 {#if counting && threeD}<p class="fps">{fps} fps</p>{/if}
-<button class="compass" class:on={threeD} bind:this={compassHost} tabindex={threeD ? 0 : -1} aria-hidden={!threeD} title="North up" aria-label="North up" onclick={() => terrain?.north()}></button>
+<button class="compass" class:on={threeD} class:turning bind:this={compassHost} tabindex={threeD ? 0 : -1} aria-hidden={!threeD} title={turning ? 'North up (N)' : 'Turn with your character (N)'} aria-label="Turn with your character" aria-pressed={turning} onclick={() => setHeadingUp(!turning)}></button>
 {#if labelled}
   {#key labelled.units}
     <PointLabel
@@ -1695,7 +1715,7 @@
     font: 14px monospace;
     pointer-events: none;
   }
-  /* The compass: bottom left, in 3D only; a click turns the north up. */
+  /* The compass: bottom left, in 3D only; a click turns the view with the character, or the north up again. */
   .compass {
     position: absolute;
     left: 12px;
@@ -1714,6 +1734,17 @@
   .compass.on {
     opacity: 1;
     pointer-events: auto;
+  }
+  /* Turning with the character: a ring of gold round the bezel, glowing softly. */
+  .compass.turning::after {
+    content: '';
+    position: absolute;
+    inset: 7px;
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 2px var(--gold),
+      0 0 14px 3px rgb(234 203 164 / 0.55);
+    pointer-events: none;
   }
   .compass :global(canvas) {
     display: block;

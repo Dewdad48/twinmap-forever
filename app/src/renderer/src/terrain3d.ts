@@ -369,6 +369,8 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
 
   /** Called at every frame while the view runs, once it is drawn: what lies over it follows. */
   onFrame: () => void = () => {}
+  /** The azimuth the view keeps to by itself (the arrow's, heading up); null: left to the hand. */
+  heading: number | null = null
 
   /**
    * Where a point of the ground is on the view, in pixels from its top left corner; how much of it
@@ -465,12 +467,14 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
   /** Where the camera is. */
   looking(): Look {
     const t = this.controls.target
+    // From where the camera is, not from the controls: while turn() runs they still hold the angles it started from.
+    const angles = new THREE.Spherical().setFromVector3(this.eye.clone().sub(t))
     return {
       x: t.x,
       z: t.z,
       seen: 2 * this.eye.distanceTo(t) * Math.tan((FOV * Math.PI) / 360),
-      polar: this.controls.getPolarAngle(),
-      azimuth: this.controls.getAzimuthalAngle(),
+      polar: angles.phi,
+      azimuth: angles.theta,
     }
   }
 
@@ -535,6 +539,15 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     this.camera.position.copy(this.controls.target).add(new THREE.Vector3().setFromSphericalCoords(distance, Math.max(polar, 1e-4), azimuth))
     this.camera.lookAt(this.controls.target)
     this.dirty = true
+  }
+
+  // The heading comes already smooth (the arrow's turn): the view keeps to it. Only from far off, as heading up is
+  // turned on or the character is followed again, it goes a fifth of the way there at every frame.
+  private steer(): void {
+    const a = this.controls.getAzimuthalAngle(),
+      da = Math.atan2(Math.sin(this.heading! - a), Math.cos(this.heading! - a))
+    if (Math.abs(da) < 0.0005) return
+    this.place(this.camera.position.distanceTo(this.controls.target), this.controls.getPolarAngle(), a + (Math.abs(da) < 0.15 ? da : da * 0.2))
   }
 
   private resize(): void {
@@ -606,6 +619,8 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     this.camera.updateProjectionMatrix()
     this.compass.turn(this.controls.getPolarAngle() / 2, this.controls.getAzimuthalAngle())
     if (this.onBefore()) this.dirty = true
+    // After the arrow is turned for this frame, so the view turns with it in the same frame, not one behind.
+    if (this.heading !== null && !this.turning) this.steer()
     if (this.inside?.step(this.camera.position, Math.min(0.1, FRAME_MS / 1000 + 0.004))) this.dirty = true
     if (this.dirty) {
       this.dirty = false
