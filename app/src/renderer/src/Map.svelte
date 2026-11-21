@@ -3,6 +3,7 @@
   // character as an arrow. It follows the character until the player drags the map away.
   // Inside a dungeon or a raid it shows that instead: its rooms, its bosses, its entrance.
   import { TILES } from './web'
+  import { layout as sides, setMapRight } from './layout.svelte'
   import type { Terrain } from './terrain3d'
   import { Arrow3d } from './arrow3d'
   import type { Inside3d } from './inside3d'
@@ -1487,7 +1488,7 @@
     else if (arrow.getLatLng().lat || arrow.getLatLng().lng) place()
   })
 
-  // L opens and closes Layers, F turns Follow on and off, Esc closes the label and then Layers; with the
+  // L opens and closes Layers, F turns Follow on and off, M sends the map to the other side of the panel, Esc closes the label and then Layers; with the
   // keyboard on the map, the space bar puts the label on its middle. Not while Settings lie over the map.
   function key(e: KeyboardEvent): void {
     if (holder.closest('[inert]')) return
@@ -1497,6 +1498,7 @@
       else layersOpen = false
     } else if (e.key === 'l' || e.key === 'L') layersOpen = !layersOpen
     else if (e.key === 'f' || e.key === 'F') follow()
+    else if (e.key === 'm' || e.key === 'M') setMapRight(!sides.mapRight)
     else if (e.key === '3' && !inside) void view3d(!threeD)
     else if (e.target === holder && e.key.startsWith('Arrow')) following = false // moved by hand, like a drag
     else if (e.key === ' ' && e.target === holder && map) {

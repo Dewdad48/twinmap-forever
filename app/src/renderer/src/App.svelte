@@ -21,6 +21,7 @@
   import Participate from './Participate.svelte'
   import FirstRun from './FirstRun.svelte'
   import Glyph from './Glyph.svelte'
+  import { PANEL, layout, setMapRight, setWidth } from './layout.svelte'
   import Logo from './Logo.svelte'
   import Map from './Map.svelte'
   import { drop, gone, opened, screen } from './motion'
@@ -174,10 +175,37 @@
   $effect(() => {
     if (!panelOpen) peek = panelHeight
   })
+  // The edge between map and open panel: dragged with the pointer, moved with the arrows, put back
+  // with a double click. While it is dragged the width is not kept: only where it is let go.
+  let work = $state<HTMLElement>()
+  let dragging = $state(false)
+  let wide = $state(innerWidth)
+  function drag(e: PointerEvent): void {
+    if (e.button !== 0 || !work) return
+    e.preventDefault()
+    const edge = e.currentTarget as HTMLElement
+    const box = work.getBoundingClientRect()
+    edge.setPointerCapture(e.pointerId)
+    dragging = true
+    edge.onpointermove = (m) => setWidth(layout.mapRight ? m.clientX - box.left : box.right - m.clientX, false)
+    edge.onpointerup = edge.onpointercancel = () => {
+      edge.onpointermove = edge.onpointerup = edge.onpointercancel = null
+      dragging = false
+      setWidth(layout.width)
+    }
+  }
+  function nudge(e: KeyboardEvent): void {
+    const step = e.key === 'ArrowLeft' ? -16 : e.key === 'ArrowRight' ? 16 : 0
+    if (!step) return
+    e.preventDefault()
+    setWidth(layout.width + (layout.mapRight ? step : -step))
+  }
   async function choose(): Promise<void> {
     wrong = (await window.twinmap.chooseGameFolder()) ?? ''
   }
 </script>
+
+<svelte:window bind:innerWidth={wide} />
 
 {#if opening}
   <div class="opening" out:fade={opened}><Logo size={96} stacked /></div>
@@ -241,7 +269,7 @@
   </div>
 {/if}
 {#if onSetup === false}
-<div class="work" class:shut={!panelOpen} in:fade={screen} inert={onSettings || onItems} style:--peek="{peek}px">
+<div class="work" class:shut={!panelOpen} class:map-right={layout.mapRight} in:fade={screen} inert={onSettings || onItems} style:--peek="{peek}px" style:--panel-w="{layout.width}px" bind:this={work}>
   <div class="mapbox">
     {#if mapReady}
       <Map {pos} {group} {death} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {route} onroute={(stop) => setRoute(addStop(route, stop))} onnpc={(pin) => (npc = pin)} />
@@ -279,7 +307,14 @@
   </div>
 
   <aside class="panel surface" class:closed={!panelOpen} aria-label="Now" bind:clientHeight={panelHeight}>
-    <button class="grip" aria-expanded={panelOpen} onclick={togglePanel}><Glyph name="menu" turn={panelOpen ? 0 : 180} />{panelOpen ? 'Close' : 'Quests and nearby'}</button>
+    <div class="head">
+      <button class="grip" aria-expanded={panelOpen} onclick={togglePanel}><Glyph name="menu" turn={panelOpen ? 0 : 180} />{panelOpen ? 'Close' : 'Quests and nearby'}</button>
+      <!-- On the end of the bar next to the map: the map goes to the other side. -->
+      {#if panelOpen}
+        {@const to = layout.mapRight ? 'Map on the left (M)' : 'Map on the right (M)'}
+        <button class="swap" title={to} aria-label={to} onclick={() => setMapRight(!layout.mapRight)}><Glyph name="swap" /></button>
+      {/if}
+    </div>
     {#if inGame && shown && !shown.live}
       <!-- Another character than the one in game: said where its bags and spells will show, with the way back. -->
       <p class="viewing" role="status">
@@ -324,6 +359,10 @@
       </footer>
     {/if}
   </aside>
+  {#if panelOpen}
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+    <div class="edge" class:dragging role="separator" tabindex="0" aria-orientation="vertical" aria-label="Panel width" aria-valuemin={PANEL.least} aria-valuemax={Math.round(wide / 2)} aria-valuenow={layout.width} title="Drag to resize. Double-click to reset." onpointerdown={drag} onkeydown={nudge} ondblclick={() => setWidth(PANEL.start)}><i></i></div>
+  {/if}
 </div>
 {/if}
 
@@ -458,7 +497,9 @@
     position: absolute;
     inset: 46px 0 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
+    /* The panel as wide as it was dragged, never under 260 px nor over half the window. */
+    --panel-side: clamp(260px, var(--panel-w, 340px), 50%);
+    grid-template-columns: minmax(0, 1fr) var(--panel-side);
     /* One row, as tall as the window and no taller: a panel with much to say scrolls, it does not push the map's foot out of sight. */
     grid-template-rows: minmax(0, 1fr);
   }
@@ -643,6 +684,116 @@
   .grip:hover {
     color: var(--gold-pale);
   }
+  .head {
+    flex: none;
+    display: flex;
+  }
+  .head .grip {
+    flex: 1;
+  }
+  /* The map to the other side: on the end of the bar that touches the map. */
+  .swap {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    border: 0;
+    background: linear-gradient(var(--stone-600), var(--stone-800));
+    box-shadow:
+      inset 0 -1px 0 #000,
+      inset -1px 0 0 #000,
+      inset -2px 0 0 #ffffff14;
+    color: var(--gold);
+    cursor: pointer;
+  }
+  .swap:hover {
+    color: var(--gold-pale);
+  }
+  .work:not(.map-right) .swap {
+    order: -1;
+  }
+  .work.map-right .swap {
+    box-shadow:
+      inset 0 -1px 0 #000,
+      inset 1px 0 0 #000,
+      inset 2px 0 0 #ffffff14;
+  }
+  /* The map on the right: the panel takes the left, and closed it lies over the map's left corner. */
+  .work.map-right {
+    grid-template-columns: var(--panel-side) minmax(0, 1fr);
+  }
+  .work.map-right .panel {
+    order: -1;
+  }
+  .work.map-right .panel.closed {
+    right: auto;
+    left: 0;
+    box-shadow:
+      0 -1px 0 #000,
+      0 -3px 0 var(--bronze-600),
+      0 -4px 0 #000,
+      1px 0 0 #000,
+      3px 0 0 var(--bronze-600),
+      4px 0 0 #000,
+      0 -10px 24px #000a;
+  }
+  /* The edge between map and panel: a bronze stud with five dots on the seam, the seam gold while
+     the pointer is on it or drags it. */
+  .edge {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(100% - var(--panel-side));
+    z-index: 1250;
+    display: grid;
+    place-items: center;
+    width: 14px;
+    margin-left: -7px;
+    cursor: col-resize;
+    touch-action: none;
+    outline: none;
+  }
+  .work.map-right .edge {
+    left: var(--panel-side);
+  }
+  .edge i {
+    position: relative;
+    z-index: 1;
+    width: 12px;
+    height: 56px;
+    border: 1px solid #000;
+    border-radius: 6px;
+    background:
+      radial-gradient(circle, var(--gold) 1.6px, transparent 2.2px) center 14px / 12px 9px repeat-y,
+      linear-gradient(90deg, var(--bronze-300), var(--bronze-600) 55%, var(--bronze-900));
+    box-shadow:
+      0 0 0 1px #0008,
+      0 2px 6px #000c;
+  }
+  .edge:hover i,
+  .edge.dragging i,
+  .edge:focus-visible i {
+    background:
+      radial-gradient(circle, #fff6dc 1.8px, transparent 2.4px) center 14px / 12px 9px repeat-y,
+      linear-gradient(90deg, var(--gold-pale), var(--bronze-300) 55%, var(--bronze-600));
+    box-shadow:
+      0 0 0 1px #000,
+      0 0 10px var(--gold);
+  }
+  .edge:hover::before,
+  .edge.dragging::before,
+  .edge:focus-visible::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 6px;
+    width: 2px;
+    background: var(--gold);
+    box-shadow:
+      0 0 10px var(--gold),
+      0 0 3px var(--gold-pale);
+  }
   /* Closed, at any size: the map takes the width, and the panel is a sign over its corner. */
   .work.shut {
     grid-template-columns: minmax(0, 1fr);
@@ -704,8 +855,17 @@
   /* A small screen: a phone upright (narrow) or on its side (low). The map takes it all, and the
      panel lies over it open too, along the foot of the screen. */
   @media (max-width: 760px), (max-height: 500px) {
-    .work {
+    .work,
+    .work.map-right {
       grid-template-columns: minmax(0, 1fr);
+    }
+    /* Over the map, the panel is not dragged wider nor sent to the other side. */
+    .edge,
+    .swap {
+      display: none;
+    }
+    .work.map-right .panel.closed {
+      right: 0;
     }
     .work .mapbox {
       --lift: var(--peek, 0px);
