@@ -11,15 +11,20 @@
 local _, ns = ...
 
 local ARRIVE = 15     -- yards from the point at which the character is there
+local NEAR = 30       -- yards from the point at which the arrow turns gold
 local TURN = 0.05     -- seconds between two turns of the arrow
 local MINI = 0.1      -- seconds between two looks at the minimap
 local MINI_SIZE = 0.7 -- a flag on the minimap, next to one on the map
 -- Yards across the minimap at each zoom, outdoors, where the game does not tell its radius.
 local ACROSS = { 466.67, 400, 333.33, 266.67, 200, 133.33 }
 local IVORY = { 0.953, 0.918, 0.851 }
--- The arrow, pointing up, in pixels from the middle of its frame: each stroke ends at the tip.
-local TIP = { 0, 26 }
-local STROKES = { { 0, -22 }, { -13, 9 }, { 13, 9 } }
+local GOLD = { 1, 0.82, 0 }
+local GREY = { 0.62, 0.62, 0.62 }
+local WHITE = { 1, 1, 1 }
+-- The arrow, white on a black edge and pointing up, tinted ivory or gold; and the dashed ring where
+-- the game tells no direction. Both drawn by addon/art.js.
+local ART = "Interface\\AddOns\\TwinmapForever\\Arrow"
+local NO_WAY = "Interface\\AddOns\\TwinmapForever\\NoWay"
 
 local targets = {} -- "route", "pin" -> { m, x, y (0 to 1), name }
 local arrow, minis = nil, {}
@@ -120,35 +125,27 @@ local function NewArrow()
       ns.Forget()
     end
   end)
-  -- Three strokes in black, and the same three thinner in ivory over them.
-  f.lines = {}
-  if f.CreateLine then
-    for i = 1, 6 do
-      local line = f:CreateLine(nil, i <= 3 and "BACKGROUND" or "ARTWORK")
-      line:SetThickness(i <= 3 and 7 or 3)
-      if i <= 3 then line:SetColorTexture(0, 0, 0, 1) else line:SetColorTexture(IVORY[1], IVORY[2], IVORY[3], 1) end
-      f.lines[i] = line
-    end
-  end
-  f.name = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  f.art = f:CreateTexture(nil, "ARTWORK")
+  f.art:SetTexture(ART)
+  f.art:SetAllPoints()
+  f.noWay = f:CreateTexture(nil, "ARTWORK")
+  f.noWay:SetTexture(NO_WAY)
+  f.noWay:SetAllPoints()
+  f.name = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   f.name:SetPoint("TOP", f, "BOTTOM", 0, -2)
   f.far = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   f.far:SetPoint("TOP", f.name, "BOTTOM", 0, -2)
   return f
 end
 
--- Turns the strokes to the left by so many radians; nil hides them.
-local function Turn(turn)
-  for _, line in ipairs(arrow.lines) do line:SetShown(turn ~= nil) end
+-- Turns the arrow to the left by so many radians, in gold when near; nil puts the ring in its place.
+local function Turn(turn, near)
+  arrow.art:SetShown(turn ~= nil)
+  arrow.noWay:SetShown(turn == nil)
   if not turn then return end
-  local cos, sin = math.cos(turn), math.sin(turn)
-  local function Turned(p) return p[1] * cos - p[2] * sin, p[1] * sin + p[2] * cos end
-  local tx, ty = Turned(TIP)
-  for i, line in ipairs(arrow.lines) do
-    local sx, sy = Turned(STROKES[(i - 1) % 3 + 1])
-    line:SetStartPoint("CENTER", arrow, sx, sy)
-    line:SetEndPoint("CENTER", arrow, tx, ty)
-  end
+  local tint = near and GOLD or IVORY
+  arrow.art:SetVertexColor(tint[1], tint[2], tint[3])
+  arrow.art:SetRotation(turn)
 end
 
 local function Point()
@@ -167,8 +164,16 @@ local function Point()
   -- Shortest Path guides to this very point, with its own arrow and line: ours stays out of the way.
   if ns.Guiding and ns.Guiding() then return arrow:Hide() end
   arrow.name:SetText(point.name)
-  arrow.far:SetText(yards and ("%d yd"):format(math.floor(yards + 0.5)) or "no direction from here")
-  Turn(turn)
+  -- Under the name: how far, and on a route which stop of how many.
+  local far = yards and ("%d yd"):format(math.floor(yards + 0.5)) or "no direction from here"
+  if targets.route and ns.RouteAt then
+    local route, index = ns.RouteAt()
+    if route then far = ("%s · stop %d of %d"):format(far, index, #route.stops) end
+  end
+  local color = yards and WHITE or GREY
+  arrow.far:SetText(far)
+  arrow.far:SetTextColor(color[1], color[2], color[3])
+  Turn(turn, yards and yards <= NEAR)
   arrow:Show()
 end
 

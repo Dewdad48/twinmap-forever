@@ -619,6 +619,9 @@ test('the arrow turns to the point followed and tells how far; arriving ends it,
   addon.run(1);
   assert.equal(addon.arrow(), 'North Gate | 250 yd | 0 -26', 'followed again after a /reload');
 
+  addon.lua('GAME.north = 475'); // near: the arrow turns gold
+  addon.run(1);
+  assert.equal(addon.arrow(), 'North Gate | 25 yd | 0 -26 gold');
   addon.lua('GAME.north = 490'); // ten yards from it
   addon.run(1);
   assert.equal(addon.arrow(), null);
@@ -644,17 +647,17 @@ test('with a route the arrow follows its next stop, and a right click on it does
   const { addon } = onRoute(31);
   addon.lua('GAME.north, GAME.west, GAME.facing = 15000, 0, 0'); // the middle of Loch Modan (1432) in the stand-in world
   addon.run(1);
-  assert.equal(addon.arrow(), 'First | 200 yd | -26 0', 'the first stop is at 40, 50: 200 yards west, to the left of one who faces north');
+  assert.equal(addon.arrow(), 'First | 200 yd · stop 1 of 3 | -26 0', 'the first stop is at 40, 50: 200 yards west, to the left of one who faces north');
   addon.arrowClick('RightButton');
   addon.run(1);
-  assert.equal(addon.arrow(), 'First | 200 yd | -26 0');
+  assert.equal(addon.arrow(), 'First | 200 yd · stop 1 of 3 | -26 0');
   assert.equal(addon.printed().split('\n').at(-1), 'Twinmap Forever: the arrow follows the route: /twinmap skip moves on.');
   addon.slash('/twinmap skip');
   addon.run(1);
-  assert.equal(addon.arrow(), 'Second | 200 yd | 26 0');
+  assert.equal(addon.arrow(), 'Second | 200 yd · stop 2 of 3 | 26 0');
   addon.slash('/twinmap skip');
   addon.run(1);
-  assert.equal(addon.arrow(), 'Third | 14412 yd | -1 -26', 'the third stop is in Elwynn, far to the south: behind one who faces north');
+  assert.equal(addon.arrow(), 'Third | 14412 yd · stop 3 of 3 | -1 -26', 'the third stop is in Elwynn, far to the south: behind one who faces north');
 });
 
 test('a click on a flag of the map has the arrow follow it, in gold; another click lets it go; the flags near are on the minimap', () => {
