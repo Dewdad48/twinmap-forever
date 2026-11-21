@@ -9,6 +9,7 @@
   import Logo from './Logo.svelte'
   import qrcode from 'qrcode-generator'
   import { inApp } from './web'
+  import { layout, setMapRight } from './layout.svelte'
 
   let { setup, tiles, onback, onfirstrun, onfeedback }: { setup: SetupStatus; tiles: TilesStatus | null; onback: () => void; onfirstrun: () => void; onfeedback: () => void } = $props()
 
@@ -55,6 +56,13 @@
               {#if inApp}<button class="btn" onclick={choose}>{setup.gameFolder ? 'Change folder' : 'Choose the game folder'}</button>{/if}
             </div>
             {#if wrong}<p class="wrong">{wrong}</p>{/if}
+          </div>
+        </section>
+        <section class="group">
+          <h2 class="band">Layout</h2>
+          <div class="in">
+            <label class="choice"><input type="radio" class="check" name="map-side" checked={!layout.mapRight} onchange={() => setMapRight(false)} />Map on the left</label>
+            <label class="choice"><input type="radio" class="check" name="map-side" checked={layout.mapRight} onchange={() => setMapRight(true)} />Map on the right</label>
           </div>
         </section>
         <!-- The window is the computer's, and so is what it shows to other devices: a phone on the home network has neither to set. -->
@@ -133,6 +141,7 @@
         <dl class="in">
           <div><dt><kbd>L</kbd></dt><dd>Layers</dd></div>
           <div><dt><kbd>F</kbd></dt><dd>Follow on and off</dd></div>
+          <div><dt><kbd>M</kbd></dt><dd>Map on the other side of the panel</dd></div>
           {#if inApp}<div><dt><kbd>F11</kbd></dt><dd>Full screen</dd></div>{/if}
           <div><dt><kbd>Esc</kbd></dt><dd>Closes a label, Layers, these settings</dd></div>
           <div><dt><kbd>Arrows</kbd><kbd>+</kbd><kbd>-</kbd></dt><dd>Move and zoom the map</dd></div>
