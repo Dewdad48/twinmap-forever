@@ -64,7 +64,7 @@ One click turns the flat map into the land itself: mountains, valleys, coasts an
 
 ### Even inside dungeons
 
-In dungeons and raids the arrow moves through the rooms, with the bosses marked and your companions beside you, each in a colour of their own. Open a dungeon's map from its door, before you go in.
+In dungeons and raids the arrow moves through the rooms, with the bosses marked and your companions beside you, each in the colour of their class. Open a dungeon's map from its door, before you go in.
 
 ![The arrow and four companions run through The Temple of Atal'Hakkar, the bosses killed behind them](https://twinmap.app/media/dungeon.gif)
 

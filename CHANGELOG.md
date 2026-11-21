@@ -2,6 +2,22 @@
 
 What changed in each version of Twinmap, newest first. The section of a version is also the text of its release on GitHub and of the addon's file on CurseForge.
 
+## 0.14.0 - 2026-11-21
+
+### New
+
+- **The panel as wide as you like, the map on either side.** Drag the bronze handle on the edge between the map and the panel to make the panel wider or narrower; a double click puts it back. The button with two arrows on the panel's bar, the M key, or Layout in Settings put the map on the right of the panel instead of the left. The window remembers both.
+- **Help improve Twinmap.** A choice, off until you turn it on, that sends anonymous data about the world of Forever so the map can be made right for everyone: pictures of the minimap inside dungeons, where bosses and rares die, the doors of dungeons, what trainers teach, and the creatures, objects and quest steps that Questie has no place for. Nothing sent names you. Twinmap asks you once, and Settings keeps the switch. What is sent, in full: [twinmap.app/privacy.html](https://twinmap.app/privacy.html#participation).
+
+### Changed
+
+- **Your party in the colours of their class.** On the map a warrior is tan and a paladin pink, as in the game.
+- **The arrow in the game.** When Shortest Path is not guiding you, Twinmap's arrow in the game is a solid point that turns gold within 30 yards. On a route, the line under the name says which stop of how many; where the game gives no direction, a grey ring takes the arrow's place. The name is one size larger.
+
+### Fixed
+
+- **Thirty folders among your addons.** Twinmap no longer makes the folders TwinmapForever_R01 to R30, which nothing used any more, and takes away those an earlier version left, with the game closed. A folder of the same name that is not Twinmap's own stays.
+
 ## 0.13.0 - 2026-11-19
 
 ### New
