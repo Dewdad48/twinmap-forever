@@ -143,12 +143,13 @@
         <dl class="in">
           <div><dt><kbd>L</kbd></dt><dd>Layers</dd></div>
           <div><dt><kbd>F</kbd></dt><dd>Follow on and off</dd></div>
-          <div><dt><kbd>N</kbd></dt><dd>In 3D, the view turns with your character, or north up</dd></div>
+          <div><dt><kbd>N</kbd></dt><dd>The map turns with your character, or north up</dd></div>
           <div><dt><kbd>M</kbd></dt><dd>Map on the other side of the panel</dd></div>
           {#if inApp}<div><dt><kbd>F11</kbd></dt><dd>Full screen</dd></div>{/if}
           {#if inApp}<div><dt><kbd>Ctrl</kbd><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd></dt><dd>Text size, also Ctrl and the wheel outside the map</dd></div>{/if}
           <div><dt><kbd>Esc</kbd></dt><dd>Closes a label, Layers, these settings</dd></div>
           <div><dt><kbd>Arrows</kbd><kbd>+</kbd><kbd>-</kbd></dt><dd>Move and zoom the map</dd></div>
+          <div><dt><kbd>Right drag</kbd></dt><dd>Turn the map</dd></div>
           <div><dt><kbd>Space</kbd></dt><dd>Label on the middle of the map</dd></div>
         </dl>
       </section>
