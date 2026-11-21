@@ -307,6 +307,10 @@ const STUB = `
       end
       function t:Show() self.shown = true end
       function t:Hide() self.shown = false end
+      -- The arrow's art: whether it shows, how far it is turned and its tint. Apart from shown, so the strip never reads it.
+      function t:SetShown(on) self.on = on end
+      function t:SetRotation(turn) self.turn = turn end
+      function t:SetVertexColor(r, g, b) self.tint = ("%.2f %.2f %.2f"):format(r, g, b) end
       -- Where it starts on the row, and whether it runs from there to the end of the row.
       function t:SetPoint(point, _, _, x)
         if point == "TOPLEFT" then self.x = x elseif point == "BOTTOMRIGHT" then self.fill = true end
@@ -396,11 +400,14 @@ const STUB = `
     return table.concat(out, "; ")
   end
   -- The arrow of ours: "name | how far | where its tip is, in pixels right and up from its middle", or nothing when it is not shown.
+  -- The tip is 26 pixels up from the middle of the art, turned with it; "gold" after it when it is tinted gold.
   function T_arrow()
     local a = TwinmapForeverArrow
     if not (a and a.shown) then return nil end
-    local tip = a.lines[4]
-    return ("%s | %s | %s"):format(a.name.text, a.far.text, tip.on and ("%d %d"):format(math.floor(tip.ex + 0.5), math.floor(tip.ey + 0.5)) or "no tip")
+    local art = a.art
+    if not art.on then return ("%s | %s | no tip"):format(a.name.text, a.far.text) end
+    local x, y = -26 * math.sin(art.turn), 26 * math.cos(art.turn)
+    return ("%s | %s | %d %d%s"):format(a.name.text, a.far.text, math.floor(x + 0.5), math.floor(y + 0.5), art.tint == "1.00 0.82 0.00" and " gold" or "")
   end
   function T_arrowClick(button) return rawget(TwinmapForeverArrow, "OnMouseUp")(TwinmapForeverArrow, button) end
   -- A click on the world map, at a place 0 to 1 from its top left: gives back whether an addon took it.
