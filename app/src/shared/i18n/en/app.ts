@@ -35,10 +35,16 @@ export default {
     // The line under "Update the app" or "Update the addon" (shared/game.ts): {addon} and {app} are the numbers of the
     // protocol the addon and the app speak.
     newerAddon: 'The Twinmap Forever addon is newer than this app (protocol {addon}, this app speaks {app}). Close Twinmap and open it again: it updates itself when it starts.',
+    // macOS only: download the update by hand instead of restarting for an automatic update, then allow its first launch.
+    // {addon} and {app}: protocol numbers. Use the names of System Settings and Open Anyway as macOS shows them in this language.
+    newerAddonMac: 'The Twinmap Forever addon is newer than this app (protocol {addon}, this app speaks {app}). Download the newest Twinmap for macOS. If macOS does not open it, choose Open Anyway under System Settings > Privacy & Security.',
     olderAddon: 'The Twinmap Forever addon is older than this app (protocol {addon}, this app speaks {app}). Update the addon from CurseForge, then restart the game.',
     connecting: 'Connecting',
     lost: 'Link lost',
     lostLine: 'No signal from the game. Log in, and check that the Twinmap Forever addon is on and its strip is not paused.',
+    // macOS only: shown on the map and in setup while Screen Recording permission is missing; Windows needs no such permission.
+    // Use the names of System Settings and its panes as macOS shows them in this language; + is the button under the list.
+    screenRecording: 'Twinmap cannot read the game window yet. Under System Settings > Privacy & Security > Screen & System Audio Recording, turn on Twinmap (add it with + if it is not listed), then reopen Twinmap.',
     combat: 'In combat, position only',
     connected: 'Connected',
     // Inside a dungeon, when the arrow is not there. "Rotate Minimap" is the name of the game's own setting.
@@ -227,6 +233,8 @@ export default {
       notYet: 'Not installed yet.',
       // _forever_\Interface\AddOns is a folder of the game: as it is.
       howTo: 'Install it with the CurseForge app. Without that app, download the file from the same page and unpack it into _forever_\\Interface\\AddOns.',
+      // macOS only: the same game folder as howTo, with forward slashes instead of Windows backslashes. Keep the path as it is.
+      howToMac: 'Install it with the CurseForge app. Without that app, download the file from the same page and unpack it into _forever_/Interface/AddOns.',
       notices: 'This page notices by itself when the addon is there.',
     },
     extras: {

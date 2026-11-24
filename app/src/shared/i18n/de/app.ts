@@ -26,11 +26,13 @@ export default {
     updateApp: 'App aktualisieren',
     updateAddon: 'Addon aktualisieren',
     newerAddon: 'Das Twinmap-Forever-Addon ist neuer als diese App (Protokoll {addon}, diese App nutzt {app}). Schließt Twinmap und öffnet es erneut: Beim Start aktualisiert es sich selbst.',
+    newerAddonMac: 'Das Twinmap-Forever-Addon ist neuer als diese App (Protokoll {addon}, diese App nutzt {app}). Ladet das neueste Twinmap für macOS herunter. Wenn macOS es nicht öffnet, wählt "Dennoch öffnen" unter "Systemeinstellungen > Datenschutz & Sicherheit".',
     olderAddon: 'Das Twinmap-Forever-Addon ist älter als diese App (Protokoll {addon}, diese App nutzt {app}). Aktualisiert das Addon über CurseForge und startet dann das Spiel neu.',
     connecting: 'Verbinde',
     // "Disconnected": short, the line under it says why.
     lost: 'Getrennt',
     lostLine: 'Kein Signal vom Spiel. Loggt Euch ein und prüft, ob das Twinmap-Forever-Addon aktiv ist und sein Streifen nicht pausiert ist.',
+    screenRecording: 'Twinmap kann das Spielfenster noch nicht lesen. Schaltet Twinmap unter "Systemeinstellungen > Datenschutz & Sicherheit > Aufnahme von Bildschirm & Systemaudio" ein (fügt es mit + hinzu, falls es nicht aufgelistet ist) und öffnet Twinmap dann erneut.',
     combat: 'Im Kampf, nur Position',
     connected: 'Verbunden',
     minimapTurns: 'In einem Dungeon wird Eure Position von der Minikarte gelesen, und das geht nicht, solange sie sich dreht: Schaltet "Minikarte drehen" im Spiel aus.',
@@ -172,6 +174,7 @@ export default {
       inFolder: 'Twinmap Forever {version} ist im AddOns-Ordner des Spiels.',
       notYet: 'Noch nicht installiert.',
       howTo: 'Installiert es mit der CurseForge-App. Ohne diese App ladet die Datei von derselben Seite herunter und entpackt sie nach _forever_\\Interface\\AddOns.',
+      howToMac: 'Installiert es mit der CurseForge-App. Ohne diese App ladet die Datei von derselben Seite herunter und entpackt sie nach _forever_/Interface/AddOns.',
       notices: 'Diese Seite bemerkt von selbst, wenn das Addon da ist.',
     },
     extras: {
