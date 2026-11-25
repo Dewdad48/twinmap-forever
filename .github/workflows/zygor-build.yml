@@ -22,7 +22,12 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
       - run: npm test
-      - run: npm run dist
+      # The app updates itself from the releases of the repository it names, and a build from the
+      # sources is version 0.0.0: left as is, it would find Catubba's newest release at its first
+      # start and put it in place of this one. So this build names the fork, which has no releases,
+      # and the app opens as it is.
+      - run: npx electron-vite build
+      - run: npx electron-builder --win nsis --publish never -c.extraMetadata.version="0.17.0-zygor.${{ github.run_number }}" -c.publish.owner=Dewdad48
       - uses: actions/upload-artifact@v4
         with:
           name: Twinmap-Zygor-Setup
