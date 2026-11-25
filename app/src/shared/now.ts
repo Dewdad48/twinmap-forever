@@ -73,9 +73,12 @@ export function questRows(log: LogQuest[], pins: QuestPin[], maps: GameMap[], co
 // The word for each service, in the order they are told when someone offers several.
 const WORDS: Record<ServiceLayer, Key> = { flight: 'app.now.flight', inn: 'app.now.inn', bank: 'app.now.bank', auction: 'app.now.auction', stable: 'app.now.stable', trainers: 'app.now.trainer', repair: 'app.now.repair', vendors: 'app.now.vendor' }
 const ORDER = Object.keys(WORDS) as ServiceLayer[]
-// Ore and herbs have no word here: they are not someone to go to.
+// Ore and herbs have no word here: they are not someone to go to. A trainer or a vendor is told by what
+// the game writes under the name, which says what for: "Leatherworking Trainer", "Food & Drink Vendor".
 function serviceWord(pin: FixedPin): string | undefined {
   const layer = ORDER.find((l) => pin.layers.includes(l))
+  const sub = pin.sub?.trim()
+  if (sub && (layer === 'trainers' || layer === 'vendors')) return sub
   return layer && t(WORDS[layer])
 }
 

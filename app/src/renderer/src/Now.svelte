@@ -209,7 +209,7 @@
       {@const way = row.continent === me!.continent ? { ...wayOf(me!.at, row.at), ...(walked.yards(row.at) === undefined ? {} : { yards: walked.yards(row.at)! }) } : null}
       <button class="row" title={way ? undefined : t('app.now.otherContinent')} aria-current={row.key === chosen} onclick={() => pick(row)} onpointerenter={() => (over = row)} onpointerleave={() => (over = null)} onfocus={() => (over = row)} onblur={() => (over = null)}>
         <span>{row.name}</span>
-        <span class="t-{row.tone}">{row.kind}</span>
+        <span class="t-{row.tone} kind" title={row.kind}>{row.kind}</span>
         <span class="num">{way ? distance(way.yards) : ''}</span>
         {#if way}<Glyph name="direction" size={12} turn={way.turn} />{/if}
       </button>
@@ -309,7 +309,7 @@
      ends, with the gaps, are the rows' own margins. */
   .places {
     display: grid;
-    grid-template-columns: 8px minmax(0, 1fr) minmax(56px, max-content) minmax(60px, max-content) 12px 8px;
+    grid-template-columns: 8px minmax(0, 1fr) minmax(56px, fit-content(42%)) minmax(60px, max-content) 12px 8px;
     column-gap: 8px;
   }
   .places > .row {
@@ -330,7 +330,13 @@
   .placeless .row {
     cursor: default;
   }
-  /* A leg of the journey: its words, and its time at the right edge. */
+  /* What a trainer trains or a vendor sells can be long: it takes at most two fifths of the row, and ends in dots
+     past that; the whole of it shows on hover. */
+  .places .kind {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   /* Zygor's lines: a ticked one struck through, a greyed one dim, as Zygor shows them. */
   .zygor .done span {
     text-decoration: line-through;
@@ -339,6 +345,7 @@
   .zygor .skip span {
     opacity: 0.45;
   }
+  /* A leg of the journey: its words, and its time at the right edge. */
   .legs .row {
     grid-template-columns: minmax(0, 1fr) auto;
   }

@@ -78,6 +78,19 @@ test('who is near: givers of quests and services of the character\'s side, each 
   expect(told(undefined)[0]).toBe('Grunt Zak Vendor 2')
 })
 
+test('a trainer or a vendor near is told by what it trains or sells, as the game writes it', () => {
+  const fixed: FixedPin[] = [
+    { ...service(12, 51, 50, 'Sheal Runetotem', ['trainers']), sub: 'Druid Trainer' },
+    { ...service(12, 52, 50, "Denni'ka", ['vendors']), sub: 'Food & Drink Vendor' },
+    { ...service(12, 53, 50, 'Bree', ['vendors', 'inn']), sub: 'Innkeeper' }, // an inn first: the inn's word
+    service(12, 54, 50, 'Tuu\'li', ['vendors']), // nothing written under the name
+  ]
+  const me = at(1, 50, 50)
+  expect(nearest(nearbyRows(MAPS, [], fixed, 'A'), me.continent, me.at, 8).map((r) => `${r.name} | ${r.kind}`)).toEqual([
+    'Sheal Runetotem | Druid Trainer', "Denni'ka | Food & Drink Vendor", 'Bree | Inn', "Tuu'li | Vendor",
+  ])
+})
+
 test('the rows keep their order for five seconds, then take the fresh one', () => {
   const row = (key: string, x: number): NowRow => ({ key, name: key, kind: 'Quest', tone: 'quest', continent: 0, at: { x, y: 0 } })
   const first = steady(null, [row('a', 1), row('b', 2)], 1000)
