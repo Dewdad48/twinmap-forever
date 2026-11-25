@@ -1,0 +1,33 @@
+# Darrell's fork: builds the Windows installer and the addon zip from the zygor branch, as artifacts
+# to download from the run's page. No release, no CurseForge upload, no secrets.
+name: Zygor build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [zygor]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Twinmap-Zygor-Setup
+          path: app/dist/*.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TwinmapForever-addon
+          path: addon/TwinmapForever
