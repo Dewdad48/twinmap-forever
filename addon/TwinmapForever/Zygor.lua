@@ -4,7 +4,7 @@
 -- Without Zygor nothing is read and nothing is sent.
 local _, ns = ...
 
-local GOALS = 6  -- lines of the step told at most
+local GOALS = 10 -- lines told at most, of the step and its sticky steps
 local TEXT = 70  -- letters of a line, and of the guide's name
 
 local function Num(v) if type(v) == "number" and not (issecretvalue and issecretvalue(v)) then return v end end
@@ -33,18 +33,43 @@ local function Build()
     return {}
   end
   ns.db.zygorTold = true
+  -- The lines as Zygor's own window writes them (Skins/Default/ViewerFrame.lua): a hidden line
+  -- left out, a line with no words of its own ("?") told by its tip, and the tip under a line when
+  -- Zygor is set to show tips below. Then the lines of the sticky steps Zygor shows with it.
+  local profile = type(zgv.db) == "table" and type(zgv.db.profile) == "table" and zgv.db.profile or {}
   local goals = {}
-  for _, goal in ipairs(type(step.goals) == "table" and step.goals or {}) do
-    if #goals >= GOALS then break end
-    local ok, status = pcall(goal.GetStatus, goal)
-    if ok and status ~= "hidden" then
-      local fine, text = pcall(goal.GetText, goal, true, false, false, true)
-      text = fine and Plain(text)
-      if text then
-        local row = { t = text, s = (status == "complete" and 1) or ((status == "impossible" or status == "obsolete") and 2) or 0 }
-        local m, x, y = Place(goal.map, goal.x, goal.y)
-        if m then row.m, row.x, row.y = m, x, y end
-        goals[#goals + 1] = row
+  local function Add(row) if #goals < GOALS then goals[#goals + 1] = row end end
+  local function Lines(st, sticky)
+    for _, goal in ipairs(type(st.goals) == "table" and st.goals or {}) do
+      if #goals >= GOALS then return end
+      local ok, status = pcall(goal.GetStatus, goal)
+      if ok and status ~= "hidden" then
+        local fine, text = pcall(goal.GetText, goal, true, false)
+        text = fine and type(text) == "string" and text or ""
+        local tip = Plain(goal.tooltip)
+        local row
+        if text ~= "?" and text ~= "" then
+          text = Plain(text)
+          if text then row = { t = text, s = (status == "complete" and 1) or ((status == "impossible" or status == "obsolete") and 2) or 0 } end
+        elseif tip then
+          row, tip = { t = tip, s = 3 }, nil
+        end
+        if row then
+          local m, x, y = Place(goal.map, goal.x, goal.y)
+          if m then row.m, row.x, row.y = m, x, y end
+          if sticky then row.k = 1 end
+          Add(row)
+          if tip and profile.tooltipsbelow then Add({ t = tip, s = 3, k = sticky and 1 or nil }) end
+        end
+      end
+    end
+  end
+  Lines(step)
+  if profile.stickyon and type(zgv.GetStickiesAt) == "function" then
+    local ok, stickies = pcall(zgv.GetStickiesAt, zgv, zgv.CurrentStepNum)
+    if ok and type(stickies) == "table" then
+      for _, sticky in ipairs(stickies) do
+        if type(sticky) == "table" and sticky ~= step then Lines(sticky, true) end
       end
     end
   end

@@ -5,8 +5,10 @@ import { pinFrom, type Pin } from './send'
 
 export interface ZygorLine {
   text: string
-  /** 'done' when Zygor ticked it, 'skip' when it greys it out, else 'todo'. */
-  state: 'todo' | 'done' | 'skip'
+  /** 'done' when Zygor ticked it, 'skip' when it greys it out, 'tip' for a hint under a line ("Walks around."), else 'todo'. */
+  state: 'todo' | 'done' | 'skip' | 'tip'
+  /** Of a sticky step Zygor shows with the current one: a goal of an earlier step still open. */
+  sticky: boolean
   /** Where the line takes place, when Zygor gives it a place. */
   at: Pin | null
 }
@@ -31,11 +33,11 @@ export function zygorFrom(section: unknown): ZygorStep | null {
   if (typeof section !== 'object' || !section || Array.isArray(section)) return null
   const { g, n, of, goals, m, x, y, name } = section as Record<string, unknown>
   if (!Array.isArray(goals)) return null
-  const lines = goals.slice(0, 10).flatMap((goal: unknown): ZygorLine[] => {
-    const { t: words, s, m: gm, x: gx, y: gy } = (typeof goal === 'object' && goal ? goal : {}) as Record<string, unknown>
+  const lines = goals.slice(0, 12).flatMap((goal: unknown): ZygorLine[] => {
+    const { t: words, s, k, m: gm, x: gx, y: gy } = (typeof goal === 'object' && goal ? goal : {}) as Record<string, unknown>
     const text = plain(words, 90)
     if (!text) return []
-    return [{ text, state: s === 1 ? 'done' : s === 2 ? 'skip' : 'todo', at: pinFrom({ m: gm, x: gx, y: gy, name: text }) }]
+    return [{ text, state: s === 1 ? 'done' : s === 2 ? 'skip' : s === 3 ? 'tip' : 'todo', sticky: k === 1, at: pinFrom({ m: gm, x: gx, y: gy, name: text }) }]
   })
   const guide = plain(g, 80) || 'Zygor'
   return { guide, step: count(n), of: count(of), lines, arrow: pinFrom({ m, x, y, name: plain(name, 80) || guide }) }

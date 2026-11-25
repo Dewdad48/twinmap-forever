@@ -265,9 +265,9 @@
       <div class="row"><span><b>{zygor.guide}</b></span></div>
       {#each zygor.lines as line, i (i)}
         {#if line.at && onzygor}
-          <button class="row" class:done={line.state === 'done'} class:skip={line.state === 'skip'} onclick={() => onzygor(line.at!)}><span>{line.text}</span></button>
+          <button class="row" class:done={line.state === 'done'} class:skip={line.state === 'skip'} class:tip={line.state === 'tip'} class:sticky={line.sticky} onclick={() => onzygor(line.at!)}><span>{line.text}</span></button>
         {:else}
-          <div class="row" class:done={line.state === 'done'} class:skip={line.state === 'skip'}><span>{line.text}</span></div>
+          <div class="row" class:done={line.state === 'done'} class:skip={line.state === 'skip'} class:tip={line.state === 'tip'} class:sticky={line.sticky}><span>{line.text}</span></div>
         {/if}
       {/each}
     </div>{/if}
@@ -309,7 +309,7 @@
      ends, with the gaps, are the rows' own margins. */
   .places {
     display: grid;
-    grid-template-columns: 8px minmax(0, 1fr) minmax(56px, fit-content(42%)) minmax(60px, max-content) 12px 8px;
+    grid-template-columns: 8px minmax(0, 1fr) minmax(56px, max-content) minmax(60px, max-content) 12px 8px;
     column-gap: 8px;
   }
   .places > .row {
@@ -330,9 +330,9 @@
   .placeless .row {
     cursor: default;
   }
-  /* What a trainer trains or a vendor sells can be long: it takes at most two fifths of the row, and ends in dots
-     past that; the whole of it shows on hover. */
+  /* What a trainer trains or a vendor sells can be long: past 11em it ends in dots, and the whole of it shows on hover. */
   .places .kind {
+    max-width: 11em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -344,6 +344,16 @@
   }
   .zygor .skip span {
     opacity: 0.45;
+  }
+  /* A tip under a line, as Zygor writes it: smaller, pale, set in. */
+  .zygor .tip span {
+    padding-left: 12px;
+    font-size: 0.88em;
+    opacity: 0.7;
+  }
+  /* A line of a sticky step, still open from earlier: marked at its edge in Zygor's red. */
+  .zygor .sticky {
+    box-shadow: inset 3px 0 0 #c0392b;
   }
   /* A leg of the journey: its words, and its time at the right edge. */
   .legs .row {
