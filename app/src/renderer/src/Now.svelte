@@ -13,6 +13,8 @@
   import Glyph from './Glyph.svelte'
   import NextStop from './NextStop.svelte'
   import { span, startedBy, type Journey } from '../../shared/journey'
+  import type { ZygorStep } from '../../shared/zygor'
+  import type { Pin } from '../../shared/send'
   import { nearestOnFoot } from '../../shared/walk'
   import { feet } from './feet.svelte'
   import type { Place } from '../../shared/death'
@@ -38,6 +40,7 @@
     route,
     inGame,
     journey, // the journey Shortest Path guides in the game, whoever started it
+    zygor, // the step Zygor shows in the game
     back, // dead: where to walk to live again, the corpse or the door of the dungeon it lies in
     met, // alerts on auction prices that were met (M18-F10), until they are removed
     onalerts, // a met alert was clicked: the Alerts of the auction house
@@ -51,6 +54,7 @@
     onremove,
     onmove,
     onstop,
+    onzygor, // a line of Zygor's step with a place was clicked
   }: {
     pos: Position | undefined
     quests: QuestPin[]
@@ -63,6 +67,7 @@
     route: Route
     inGame: boolean
     journey: Journey | null
+    zygor: ZygorStep | null
     back: (Place & { name: string; door: boolean }) | null
     met: Alert[]
     onalerts: () => void
@@ -76,6 +81,7 @@
     onremove: (index: number) => void
     onmove: (from: number, to: number) => void
     onstop: (stop: Stop) => void
+    onzygor?: (pin: Pin) => void
   } = $props()
 
   const NEAR = 8 // rows of Nearby
@@ -252,6 +258,20 @@
       {/if}
     </div>{/if}
   {/if}
+  {#if zygor}
+    <!-- The step Zygor shows in the game: its lines as Zygor words them, ticked as it ticks them. A line with a place shows it on the map. -->
+    {@render title('zygor', 'Zygor', zygor.step ? (zygor.of ? `${zygor.step}/${zygor.of}` : zygor.step) : undefined)}
+    {#if !folded.zygor}<div class="rows placeless zygor" role="status">
+      <div class="row"><span><b>{zygor.guide}</b></span></div>
+      {#each zygor.lines as line, i (i)}
+        {#if line.at && onzygor}
+          <button class="row" class:done={line.state === 'done'} class:skip={line.state === 'skip'} onclick={() => onzygor(line.at!)}><span>{line.text}</span></button>
+        {:else}
+          <div class="row" class:done={line.state === 'done'} class:skip={line.state === 'skip'}><span>{line.text}</span></div>
+        {/if}
+      {/each}
+    </div>{/if}
+  {/if}
   {#if myPins.length}
     {@render title('pins', t('app.now.pins'), myPins.length)}
     {#if !folded.pins}{@render rows(myPins)}{/if}
@@ -311,6 +331,14 @@
     cursor: default;
   }
   /* A leg of the journey: its words, and its time at the right edge. */
+  /* Zygor's lines: a ticked one struck through, a greyed one dim, as Zygor shows them. */
+  .zygor .done span {
+    text-decoration: line-through;
+    opacity: 0.6;
+  }
+  .zygor .skip span {
+    opacity: 0.45;
+  }
   .legs .row {
     grid-template-columns: minmax(0, 1fr) auto;
   }

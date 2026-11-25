@@ -39,6 +39,7 @@
   import PointLabel from './PointLabel.svelte'
   import { inRoute, noRoute, type Route, type Stop } from '../../shared/route'
   import { legsOn, type Journey, type WayLeg } from '../../shared/journey'
+  import type { ZygorStep } from '../../shared/zygor'
   import { ahead as restOf } from '../../shared/walk'
   import { deathPlaces, type Death, type Place as DeathPlace } from '../../shared/death'
   import { feet } from './feet.svelte'
@@ -49,7 +50,7 @@
 
   // at: when the position was read off the game, in milliseconds.
   // insideReady: the rooms of the buildings are converted, and their list can be asked for.
-  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, route = noRoute(), onroute, onnpc, kills, death = null, skills, xpLevel, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; skills?: unknown; xpLevel?: number | null; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; onnpc?: (pin: FixedPin | null) => void; group?: Companion[] } = $props()
+  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, zygor = null, route = noRoute(), onroute, onnpc, kills, death = null, skills, xpLevel, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; skills?: unknown; xpLevel?: number | null; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; zygor?: ZygorStep | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; onnpc?: (pin: FixedPin | null) => void; group?: Companion[] } = $props()
 
   const TOP_ZOOM = 7 // the detail of the game itself: the picture of a block is four tiles
   const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='
@@ -695,6 +696,13 @@
    * Takes the map to a place and opens the label on it: for a row chosen in the panel, for a
    * result of the search. zoom: how near to look, when the map is farther than that.
    */
+  // A place as the game names it (a map of the game and percent of it), for a line of Zygor's step.
+  export function goToPin(pin: { m: number; x: number; y: number; name: string }): void {
+    const on = maps.find((m) => m.id === pin.m)
+    if (!on?.rect || on.continent === null) return
+    goTo({ continent: on.continent, at: unitsOfPlace(on.rect, pin.x, pin.y), title: pin.name })
+  }
+
   export function goTo(to: { continent: Continent; at: Point; title: string; where?: string; zoom?: number; whole?: GameMap; dungeon?: { id: number; wing?: string }; item?: number }): void {
     if (!map || !maps.length) return
     following = false
@@ -1623,6 +1631,28 @@
     // A ghost walks back: the way Shortest Path shows then is the same walk, drawn below.
     if (map && !inside && !(death?.ghost && back)) journeyLayer.addTo(map)
     else journeyLayer.remove()
+  })
+
+  // Where Zygor's arrow points in the game: a ring in Zygor's orange, its words on hover.
+  const zygorMark = $derived.by(() => {
+    const pin = zygor?.arrow
+    const on = pin ? maps.find((m) => m.id === pin.m) : undefined
+    if (!pin || !on?.rect || on.continent === null) return null
+    return { continent: on.continent, at: unitsOfPlace(on.rect, pin.x, pin.y), name: pin.name }
+  })
+  const zygorLayer = L.layerGroup()
+  $effect(() => {
+    zygorLayer.clearLayers()
+    const mark = zygorMark
+    if (!mark || mark.continent !== continent) return
+    L.circleMarker(at(mark.at), { radius: 8, color: '#000', weight: 4, fill: false, interactive: false }).addTo(zygorLayer)
+    L.circleMarker(at(mark.at), { radius: 8, color: '#ff7a1a', weight: 2, fillColor: '#ff7a1a', fillOpacity: 0.35 })
+      .bindTooltip(Object.assign(document.createElement('span'), { textContent: `Zygor: ${mark.name}` }), { direction: 'top', offset: [0, -8], className: 'tip' })
+      .addTo(zygorLayer)
+  })
+  $effect(() => {
+    if (map && !inside) zygorLayer.addTo(map)
+    else zygorLayer.remove()
   })
 
   // A death: the tombstone on the corpse, a ghost on the graveyard it came back at, and the way on

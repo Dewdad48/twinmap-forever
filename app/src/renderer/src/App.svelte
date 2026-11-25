@@ -14,6 +14,7 @@
   import { inApp } from './web'
   import { followFrom, goneFrom, inboxFrom, setFrom } from '../../shared/send'
   import { journeyFrom } from '../../shared/journey'
+  import { zygorFrom } from '../../shared/zygor'
   import Now from './Now.svelte'
   import Search from './Search.svelte'
   import type { SetupStatus } from '../../shared/setup'
@@ -164,6 +165,8 @@
   }
   // The journey Shortest Path guides in the game.
   const journey = $derived(live ? journeyFrom(link?.state.sections.journey) : null)
+  // The step Zygor shows in the game, and where its arrow points.
+  const zygor = $derived(live ? zygorFrom(link?.state.sections.zygor) : null)
   // The companions of the group, where the game tells: gone with the strip, and with a group no longer told of.
   const group = $derived(live ? groupFrom(link?.state.sections.group, now - (link?.state.updatedAt.group ?? 0)) : [])
   const death = $derived(live ? deathFrom(link?.state.sections.dead, now - (link?.state.updatedAt.dead ?? 0)) : null)
@@ -382,7 +385,7 @@
 <div class="work" class:shut={!panelOpen} class:map-right={layout.mapRight} in:fade={screen} inert={onItems || onAh} style:--peek="{peek}px" style:--panel-w="{layout.width}px" bind:this={work}>
   <div class="mapbox" style:--readout="{readoutWidth}px">
     {#if mapReady}
-      <Map {pos} {group} {death} skills={char?.name ? sheets[char.name]?.pieces.skills : undefined} xpLevel={char ? (xp ? char.level : null) : undefined} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {route} onroute={(stop) => setRoute(addStop(route, stop))} onnpc={(pin) => (npc = pin)} />
+      <Map {pos} {group} {death} skills={char?.name ? sheets[char.name]?.pieces.skills : undefined} xpLevel={char ? (xp ? char.level : null) : undefined} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {zygor} {route} onroute={(stop) => setRoute(addStop(route, stop))} onnpc={(pin) => (npc = pin)} />
     {:else if tiles}
       <div class="making" class:failed={tiles.state === 'failed' || tiles.state === 'no-game'}>
         <p>{tilesLine(tiles)}</p>
@@ -450,6 +453,7 @@
       {route}
       inGame={route.sent && gameRoute?.t === route.t}
       {journey}
+      {zygor}
       back={death ? back : null}
       met={alerts.filter((a) => a.met)}
       onalerts={() => ((onSettings = false), (onItems = false), (onAh = true), showAlerts++)}
@@ -461,6 +465,7 @@
       onremove={(index) => setRoute(removeStop(route, index))}
       onmove={(from, to) => setRoute(moveStop(route, from, to))}
       onstop={(stop) => mapView?.goTo({ continent: stop.continent, at: stop.at, title: stop.name })}
+      onzygor={(pin) => mapView?.goToPin(pin)}
       onpick={(row) => mapView?.goTo({ continent: row.continent, at: row.at, title: row.name })} onpoint={(row) => mapView?.pointAt(row)} />
     {#if char}
       <footer>

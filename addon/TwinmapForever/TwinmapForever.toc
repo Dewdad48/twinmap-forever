@@ -36,4 +36,5 @@ Route.lua
 Marks.lua
 Arrow.lua
 ShortestPath.lua
+Zygor.lua
 Options.lua
