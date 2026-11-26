@@ -62,7 +62,8 @@ export function groundLayers(tex0: Buffer, bigAlpha: boolean): GroundLayers | nu
       for (let y = 0; y < half; y++)
         for (let x = 0; x < half; x++) {
           const k = y * 2 * ALPHA + x * 2
-          alpha[((cr * half + y) * GROUND_SIDE + cc * half + x) * 3 + l - 1] = (points[k]! + points[k + 1]! + points[k + ALPHA]! + points[k + ALPHA + 1]! + 2) >> 2
+          // In steps of 17 (16 levels, as the game's own 4 bit alpha): the file a third the size, the blend the same to the eye.
+          alpha[((cr * half + y) * GROUND_SIDE + cc * half + x) * 3 + l - 1] = Math.round((points[k]! + points[k + 1]! + points[k + ALPHA]! + points[k + ALPHA + 1]!) / 68) * 17
         }
     }
   })
