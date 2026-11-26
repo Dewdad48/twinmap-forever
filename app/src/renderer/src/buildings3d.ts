@@ -52,10 +52,8 @@ export class Buildings {
     this.show(folder)
   }
 
-  /** Before a frame: the buildings round the point looked at. True when the view must be drawn again.
-   *  roof: yards over the point looked at above which they are cut away, or null for whole buildings. */
-  update(at: THREE.Vector3, distance: number, roof: number | null = null): boolean {
-    cut.constant = roof === null ? 1e6 : at.y + roof
+  /** Before a frame: the buildings round the point looked at. True when the view must be drawn again. */
+  update(at: THREE.Vector3, distance: number): boolean {
     this.again()
     const on = distance < SHOWN_WITHIN
     this.group.visible = on
@@ -78,7 +76,8 @@ export class Buildings {
 
   private place(s: Standing): void {
     const mesh = new THREE.Mesh()
-    mesh.castShadow = mesh.receiveShadow = this.shadows
+    // They take the hills' shadows but cast none: drawing their many triangles again for the sun cost the most.
+    mesh.receiveShadow = this.shadows
     mesh.matrixAutoUpdate = false
     // The building's own x, y (z up) into the ground's: x east, z south, y up; turned as interiors.ts lays out its rooms.
     const turn = ((s.t - 180) * Math.PI) / 180, sin = Math.sin(turn), cos = Math.cos(turn), k = s.s
@@ -131,11 +130,9 @@ const SIDE = 64 // pixels a side of a building's textures, as main/world3d.ts ke
 // only): its textures go in this uniform just before each building is drawn. A material for each
 // shape, so three.js sets the uniform again whenever it goes from one shape to another.
 const shared = { uBuilding: { value: null as THREE.DataArrayTexture | null } }
-// Above this the buildings are cut away (a dungeon's roof of thorns or rock, over the point looked at); far up when nothing is.
-const cut = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e6)
 
 function materialFor(): THREE.MeshLambertMaterial {
-  const m = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, clippingPlanes: [cut] })
+  const m = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide })
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uBuilding = shared.uBuilding
     shader.vertexShader = shader.vertexShader

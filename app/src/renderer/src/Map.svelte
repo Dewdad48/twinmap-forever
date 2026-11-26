@@ -937,21 +937,8 @@
     terrain?.zoomAtCursor(!following)
   })
   let syncing = false // the 2D map is moved from the 3D view: not the other way round
-  // Darrell's fork: a dungeon or raid with ground of its own (Razorfen Kraul, Razorfen Downs...) is shown in 3D too, from its folder.
-  // Only those the conversion found ground in (dungeons3d.json): one all rooms (Ragefire Chasm) stays 2D.
-  // Asked again each minute until there: the first time, it is made after the map is up.
-  let grounded = new Set<string>()
-  const askGrounded = (): void =>
-    void fetch(`${TILES}/dungeons3d.json`)
-      .then((a) => (a.ok ? (a.json() as Promise<string[]>) : []))
-      .then((l) => {
-        grounded = new Set(l)
-        if (!l.length) window.setTimeout(askGrounded, 60_000)
-      })
-      .catch(() => window.setTimeout(askGrounded, 60_000))
-  askGrounded()
-  const worldShown = (): string | undefined =>
-    inside ? (inside.kind !== 'world' && inside.ground && grounded.has(inside.ground) ? inside.ground : undefined) : WORLDS.find((w) => w.continent === continent)?.name
+  // Darrell chose 2D for every dungeon (the 3D of their ground slowed his game).
+  const worldShown = (): string | undefined => (inside ? undefined : WORLDS.find((w) => w.continent === continent)?.name)
   // Going into a map, or out of one, with the 3D view on: it shows that map's ground, or goes back to 2D where there is none.
   $effect(() => {
     void inside
@@ -959,7 +946,7 @@
     untrack(() => {
       if (!threeD || !terrain) return
       const folder = worldShown()
-      // A dungeon that is all rooms: its 2D map, where it was just opened.
+      // A dungeon: its 2D map, where it was just opened.
       if (!folder) return back2d(false)
       terrain.show(folder)
       const l = terrain.looking()

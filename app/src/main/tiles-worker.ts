@@ -260,14 +260,8 @@ try {
     if (!finishedWorld3d(folder)) {
       const files = open()
       void (async () => {
+        // Dungeons stay 2D (Darrell's choice): none made in 3D.
         const dungeons: { name: string; file: number }[] = []
-        try {
-          const maps = files.read(MAP_FILE, true), fights = files.read(ENCOUNTERS_FILE, true)
-          if (maps && fights)
-            for (const m of mapEntries(table(maps), table(fights))) if (m.kind !== 'world' && existsSync(join(folder, `i${m.id}`))) dungeons.push({ name: `i${m.id}`, file: m.worldFile })
-        } catch {
-          // the continents only
-        }
         // Which have ground to show in 3D: not those whose map is all rooms (Ragefire Chasm), whatever pictures they have.
         const grounded: string[] = []
         for (const d of dungeons) {

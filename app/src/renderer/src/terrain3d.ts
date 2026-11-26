@@ -27,8 +27,6 @@ const WORLD = 64 * BLOCK_YARDS
 const FINEST = BLOCK_ZOOM + 1
 /** The nodes the tree starts from: 16 x 16 blocks each. */
 const ROOT = 2
-// Darrell's fork: yards over the point looked at, in a dungeon, above which buildings are cut away (buildings3d.ts).
-const DUNGEON_ROOF = 14
 /** Vertices a side of every node. */
 const N = 65
 /** Vertical field of view, in degrees. */
@@ -57,7 +55,9 @@ const LOOKS = 8
  * Milliseconds at least between two frames of the view: about 60 a second, 72 on a screen of 144.
  * The graphics card is shared with the game, which then lost frames to a view drawn 144 times a second.
  */
-const FRAME_MS = 1000 / 60 - 4
+// Darrell's fork: 30 frames a second at most, not 60. A map on a second screen needs no more, and the game
+// on the same graphics card keeps its own frames smooth.
+const FRAME_MS = 1000 / 30 - 4
 /** Pixels past the edge of the view where what lies on the ground still counts as on it. */
 const OFF = 60
 /** The ground over a room it is the roof of: how much of it stays (ui.md, "Interni e grotte in 3D"). */
@@ -227,9 +227,10 @@ export class Terrain {
     // Darrell's fork: the hills cast shadows (not when drawn by the processor: too slow there).
     if (realismOn('shadows') && !software) {
       this.renderer.shadowMap.enabled = true
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      this.renderer.shadowMap.type = THREE.PCFShadowMap
       sun.castShadow = true
-      sun.shadow.mapSize.set(inApp ? 4096 : 2048, inApp ? 4096 : 2048)
+      // 2048 and plain filtering: a quarter of the work of 4096 and soft filtering, little to see between them at a map's size.
+      sun.shadow.mapSize.set(2048, 2048)
       sun.shadow.bias = -0.0004
       sun.shadow.normalBias = 1.5
       this.scene.add(sun.target)
@@ -238,7 +239,6 @@ export class Terrain {
     // Darrell's fork: the game's ground textures near the camera, and its buildings (ground3d.ts, buildings3d.ts).
     if (realismOn('ground')) this.paint = new GroundPaint(TILES, inflated, this.renderer.capabilities.getMaxAnisotropy())
     if (realismOn('buildings')) {
-      this.renderer.localClippingEnabled = true
       this.buildings = new Buildings(TILES, inflated, !!this.sun)
       this.scene.add(this.buildings.group)
     }
@@ -669,8 +669,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     this.camera.far = distance * 4 + 2000
     this.camera.updateProjectionMatrix()
     if (this.sun) this.shine(distance)
-    // In a dungeon (its folder "i" and its number) the buildings over the point looked at are cut away: Razorfen's roof of thorns.
-    if (this.buildings?.update(this.controls.target, distance, this.folder.startsWith('i') ? DUNGEON_ROOF : null)) this.dirty = true
+    if (this.buildings?.update(this.controls.target, distance)) this.dirty = true
     this.compass.turn(this.controls.getPolarAngle() / 2, this.controls.getAzimuthalAngle())
     if (this.onBefore()) this.dirty = true
     // After the arrow is turned for this frame, so the view turns with it in the same frame, not one behind.
