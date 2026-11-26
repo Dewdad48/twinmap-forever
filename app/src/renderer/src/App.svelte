@@ -583,6 +583,7 @@
     {log}
       {fixed}
       side={char?.side}
+      xpLevel={char ? (xp ? char.level : null) : undefined}
       ready={mapReady}
       live={!!live}
       {inbox}
