@@ -937,7 +937,22 @@
     terrain?.zoomAtCursor(!following)
   })
   let syncing = false // the 2D map is moved from the 3D view: not the other way round
-  const worldShown = (): string | undefined => (inside ? undefined : WORLDS.find((w) => w.continent === continent)?.name)
+  // Darrell's fork: a dungeon or raid with ground of its own (Razorfen Kraul, Razorfen Downs...) is shown in 3D too, from its folder.
+  const worldShown = (): string | undefined =>
+    inside ? (inside.kind !== 'world' && inside.ground ? inside.ground : undefined) : WORLDS.find((w) => w.continent === continent)?.name
+  // Going into a map, or out of one, with the 3D view on: it shows that map's ground, or goes back to 2D where there is none.
+  $effect(() => {
+    void inside
+    void continent
+    untrack(() => {
+      if (!threeD || !terrain) return
+      const folder = worldShown()
+      if (!folder) return back2d()
+      terrain.show(folder)
+      const l = terrain.looking()
+      lookAsTheMap(l.polar, l.azimuth)
+    })
+  })
   // Yards of ground from top to foot of the 2D map at a zoom, and back.
   const seenAt = (z: number): number => (map!.getSize().y / 2 ** z) * YARDS_PER_UNIT
   const zoomFor = (seen: number): number => Math.log2((map!.getSize().y * YARDS_PER_UNIT) / seen)

@@ -18,7 +18,7 @@ import { EncryptedFileError } from './client-files'
 import { keep } from './tiles'
 
 export const WORLD3D_FILE = 'world3d.json'
-const FORMAT = 2
+const FORMAT = 3 // 3: the dungeons with ground as well
 const TEXTURE = 128 // pixels a side of a ground texture as kept
 
 /** A building standing in a continent: its file, where (yards from the top left, u east, v south, h up), its turn (degrees) and size. */
@@ -37,7 +37,13 @@ export function finishedWorld3d(folder: string): boolean {
 // for while this runs (item-icons.ts) are answered at once, not after it.
 const breathe = (): Promise<void> => new Promise((go) => setImmediate(go))
 
-export async function convertWorld3d(read: (id: number) => Buffer | null, folder: string, only?: Set<number>): Promise<{ blocks: number; buildings: number; shapes: number }> {
+/** worlds: the maps to do, by their folder and world file: the continents, and the dungeons that have ground. */
+export async function convertWorld3d(
+  read: (id: number) => Buffer | null,
+  folder: string,
+  only?: Set<number>,
+  worlds: readonly { name: string; file: number }[] = WORLDS,
+): Promise<{ blocks: number; buildings: number; shapes: number }> {
   const get = (id: number): Buffer | null => {
     try {
       return id ? read(id) : null
@@ -48,7 +54,7 @@ export async function convertWorld3d(read: (id: number) => Buffer | null, folder
   }
   const textures = new Set<number>(), shapes = new Set<number>()
   let blocks = 0, buildings = 0
-  for (const world of WORLDS) {
+  for (const world of worlds) {
     const wdt = get(world.file)
     if (!wdt) continue
     const top = chunksOf(wdt)

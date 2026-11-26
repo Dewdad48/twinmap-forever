@@ -255,9 +255,30 @@ try {
     }
     // Darrell's fork: the game's ground textures and buildings for the 3D view, in turns with the worker's
     // other work (world3d.ts). Without them the 3D view is as before; a failure is tried again at the next start.
+    // The dungeons and raids with ground of their own (Razorfen Kraul, Razorfen Downs, Maraudon...): their
+    // heights for the 3D view as the continents have them, then their textures and buildings with the continents'.
     if (!finishedWorld3d(folder)) {
       const files = open()
-      void convertWorld3d((id) => files.read(id, true), folder).catch(() => {})
+      void (async () => {
+        const dungeons: { name: string; file: number }[] = []
+        try {
+          const maps = files.read(MAP_FILE, true), fights = files.read(ENCOUNTERS_FILE, true)
+          if (maps && fights)
+            for (const m of mapEntries(table(maps), table(fights))) if (m.kind !== 'world' && existsSync(join(folder, `i${m.id}`))) dungeons.push({ name: `i${m.id}`, file: m.worldFile })
+        } catch {
+          // the continents only
+        }
+        for (const d of dungeons) {
+          try {
+            const wdt = files.read(d.file)
+            if (wdt) convertHeights(wdt, (id) => files.read(id), join(folder, d.name), undefined, () => WATER)
+          } catch {
+            // that one without its 3D ground
+          }
+          await new Promise((go) => setImmediate(go))
+        }
+        await convertWorld3d((id) => files.read(id, true), folder, undefined, [...WORLDS, ...dungeons])
+      })().catch(() => {})
     }
     // Now the map holds all these keys could open. One it was made with and the cache has lost stays listed.
     writeFileSync(keysFile, JSON.stringify([...new Set([...usedKeys, ...keys.keys()])].sort((a, b) => a - b)))
