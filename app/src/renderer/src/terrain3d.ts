@@ -795,7 +795,8 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
         if (kids.every((k) => k.state === 'ready' || k.state === 'empty')) return void kids.forEach(visit)
       }
       n.group!.visible = true
-      if (n.picture) this.pictures.get(n.picture)!.used = this.frame
+      const picture = n.picture ? this.pictures.get(n.picture) : undefined
+      if (picture) picture.used = this.frame
     }
     const roots = 2 ** ROOT
     for (let y = 0; y < roots; y++) for (let x = 0; x < roots; x++) visit(this.node(ROOT, x, y))
@@ -821,8 +822,10 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
         return
       }
       const key = block ?? `${n.z} ${n.x} ${n.y}`
-      const texture = await this.picture(key, n)
+      // Darrell's fork: the paint first. Its wait comes before the picture is taken: a picture taken and then
+      // left waiting could be dropped as unused in between, and the node would point at nothing.
       const paint = block && this.paint ? await this.paint.block(folder, block) : null
+      const texture = await this.picture(key, n)
       if (folder !== this.folder) return
       n.picture = key
       n.grid = gridOf(levels, n.z, n.x, n.y)
