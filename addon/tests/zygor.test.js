@@ -27,7 +27,7 @@ const ZYGOR = `
     CurrentGuide = { title_short = "Leveling Guides\\\\Horde\\\\Hillsbrad Foothills (20-30)", steps = { 1, 2, 3 } },
     CurrentStep = { goals = {
       Goal("complete", "|cff00ff00Talk to|r |Hunit:1|hDeathstalker Lesh|h", 1424, 0.5512, 0.3049),
-      Goal("incomplete", "|TInterface\\\\Icons\\\\x:0|t Accept |cffffff00'Time To Strike'|r"),
+      (function() local g = Goal("incomplete", "|TInterface\\\\Icons\\\\x:0|t Accept |cffffff00'Time To Strike'|r"); g.action = "kill"; g.targetid = 3110; return g end)(),
       Goal("passive", "?", nil, nil, nil, "Walks around."),
       Goal("passive", ""),
       Goal("hidden", "Not shown") } },
@@ -47,6 +47,7 @@ test('the step goes out with its plain lines and where the arrow points; then th
   assert.deepEqual(told(addon).at(-1), {
     g: 'Hillsbrad Foothills (20-30)', n: 14, of: 3, m: 1424, x: 55.12, y: 30.49, name: 'Deathstalker Lesh',
     goals: [{ t: 'Talk to Deathstalker Lesh', s: 1, m: 1424, x: 55.12, y: 30.49 }, { t: "Accept 'Time To Strike'", s: 0 }, { t: 'Walks around.', s: 3 }, { t: 'Kill 2 Syndicate Rogues (8/10)', s: 0, k: 1 }],
+    k: [3110],
   });
   addon.lua('ZGV.CurrentGuide = nil; ZGV.CurrentStep = nil');
   addon.run(6);

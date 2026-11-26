@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld('twinmap', {
   ahUnalert: (t: number): Promise<void> => ipcRenderer.invoke('ah-unalert', t),
   // Who sells an item, who drops it, where it is found.
   itemSources: (item: number): Promise<ItemSources> => ipcRenderer.invoke('item-sources', item),
-  npcSpots: (npc: number): Promise<Record<string, [number, number][]>> => ipcRenderer.invoke('npc-spots', npc),
+  npcSpots: (npcs: number[], items: number[] = []): Promise<{ name: string; spots: Record<string, [number, number][]> }[]> => ipcRenderer.invoke('npc-spots', npcs, items),
   onQuests: (listener: (status: QuestsStatus) => void) => {
     ipcRenderer.on('quests', (_event, status: QuestsStatus) => listener(status))
   },

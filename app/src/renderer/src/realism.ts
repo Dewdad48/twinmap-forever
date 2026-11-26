@@ -10,7 +10,7 @@ import type * as THREE from 'three'
 
 export type Realism = 'shadows' | 'rock' | 'ground' | 'buildings' | 'stem' | 'cities' | 'areas'
 const KEY = 'twinmap.fork.3d'
-const DEFAULTS: Record<Realism, boolean> = { shadows: true, rock: true, ground: true, buildings: true, stem: true, cities: true, areas: true }
+const DEFAULTS: Record<Realism, boolean> = { shadows: true, rock: true, ground: true, buildings: true, stem: true, cities: true, areas: false }
 
 function read(): Record<Realism, boolean> {
   try {

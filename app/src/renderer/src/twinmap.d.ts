@@ -23,7 +23,7 @@ declare global {
       savePortrait: (key: string) => Promise<void>
       onTips: (listener: (tips: import('../../shared/tips').Tips) => void) => void
       itemSources: (item: number) => Promise<import('../../shared/tips').ItemSources>
-      npcSpots: (npc: number) => Promise<Record<string, [number, number][]>>
+      npcSpots: (npcs: number[], items?: number[]) => Promise<{ name: string; spots: Record<string, [number, number][]> }[]>
       onPrices: (listener: (told: import('../../shared/ah').PricesTold) => void) => void
       ahHouse: (region: string, house: number) => Promise<void>
       ahAgain: () => Promise<void>

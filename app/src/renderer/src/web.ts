@@ -65,7 +65,7 @@ if (!inApp) {
     savePortrait: () => Promise.resolve(), // a browser downloads the picture by itself (Items.svelte)
     onTips: on('tips'),
     itemSources: call('item-sources', { sold: [], drops: [], found: [] }),
-    npcSpots: call('npc-spots', {}),
+    npcSpots: call('npc-spots', []),
     onPrices: on('prices'),
     ahHouse: call('ah-house', undefined),
     ahAgain: call('ah-again', undefined),

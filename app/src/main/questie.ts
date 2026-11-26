@@ -456,6 +456,27 @@ export function placed(db: Questie, kind: string, id: number): boolean {
 /** How far, in yards, the player may meet an NPC from where QuestieDB has it before it counts as elsewhere (M15-F24). */
 export const NEAR_NPC = 25
 
+/**
+ * Darrell's fork: where the creatures asked for are, and those an item drops from or is found in: each by name with
+ * every spot QuestieDB has for it. For the target and Zygor's step (Map.svelte); at most `most` of them.
+ */
+export function spotsOf(db: Questie, npcs: number[], items: number[], most = 10): { name: string; spots: Places }[] {
+  const numbers = (t: unknown): number[] => list(t).filter((n): n is number => typeof n === 'number')
+  const out: { name: string; spots: Places }[] = []
+  const add = (kind: 'Npc' | 'Object', id: number): void => {
+    if (out.length >= most) return
+    const name = db.get(kind, id, kind === 'Npc' ? NPC.name : OBJECT.name)
+    const spots = kind === 'Npc' ? npcSpots(db, id) : db.places('Object', id)
+    if (typeof name === 'string' && Object.values(spots).some((l) => l.length)) out.push({ name, spots })
+  }
+  for (const id of npcs) add('Npc', id)
+  for (const item of items) {
+    for (const id of numbers(db.get('Item', item, ITEM.npcDrops))) add('Npc', id)
+    for (const id of numbers(db.get('Item', item, ITEM.objectDrops))) add('Object', id)
+  }
+  return out
+}
+
 /** Every spot QuestieDB has for an NPC, by zone, in hundredths of the zone: its spawns and every point of its paths. */
 export function npcSpots(db: Questie, id: number): Places {
   const out: Places = {}

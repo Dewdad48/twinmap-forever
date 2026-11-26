@@ -1235,16 +1235,19 @@
   // as the game's own map shows them. In 2D under the pins; in 3D laid on the ground (areas3d.ts). The quest picked in the
   // Now column alone, when one is; a switch in Settings.
   const areasLayer = L.layerGroup()
-  // Darrell's fork: where QuestieDB has more of the creature targeted in the game, on the continent on show: orange
-  // rings with its name. The game tells where none of them stands, only what the target is. In 3D as the other rings are.
+  // Darrell's fork: where QuestieDB has the creature targeted in the game, and the creatures and items of Zygor's step
+  // still to do (kill: the creature; get: those it drops from, where it is found): light orange rings with the name.
+  // The game tells where none of them stands, only what they are. In 3D as the other rings are.
   const targetLayer = L.layerGroup()
-  let targetSpots = $state<{ id: number; name: string; spots: Record<string, [number, number][]> } | null>(null)
+  let targetSpots = $state<{ key: string; list: { name: string; spots: Record<string, [number, number][]> }[] } | null>(null)
   $effect(() => {
-    const t = target
-    if (!t) return void (targetSpots = null)
-    if (targetSpots?.id === t.id) return
-    void window.twinmap.npcSpots(t.id).then((spots) => {
-      if (target?.id === t.id) targetSpots = { id: t.id, name: t.name, spots }
+    const npcs = [...new Set([...(target ? [target.id] : []), ...(zygor?.kills ?? [])])], items = zygor?.items ?? []
+    const key = `${npcs.join(',')}|${items.join(',')}`
+    if (!npcs.length && !items.length) return void (targetSpots = null)
+    if (targetSpots?.key === key) return
+    void window.twinmap.npcSpots(npcs, items).then((list) => {
+      const now = `${[...new Set([...(target ? [target.id] : []), ...(zygor?.kills ?? [])])].join(',')}|${(zygor?.items ?? []).join(',')}`
+      if (now === key) targetSpots = { key, list }
     })
   })
   $effect(() => {
@@ -1252,14 +1255,15 @@
     if (!map || inside || !targetSpots) return
     if (!map.hasLayer(targetLayer)) targetLayer.addTo(map)
     const zones = new Map(maps.filter((m) => m.level === 'zone' && m.rect && m.area && m.continent === continent).map((m) => [m.area, m]))
-    for (const [area, spots] of Object.entries(targetSpots.spots)) {
-      const zone = zones.get(Number(area))
-      if (!zone?.rect) continue
-      for (const [x, y] of spots)
-        L.circleMarker(at(unitsOfPlace(zone.rect, x, y)), { radius: 6, color: '#ff8a2a', weight: 2, fillColor: '#ff8a2a', fillOpacity: 0.35 })
-          .bindTooltip(targetSpots.name, { direction: 'top', className: 'tip' })
-          .addTo(targetLayer)
-    }
+    for (const one of targetSpots.list)
+      for (const [area, spots] of Object.entries(one.spots)) {
+        const zone = zones.get(Number(area))
+        if (!zone?.rect) continue
+        for (const [x, y] of spots)
+          L.circleMarker(at(unitsOfPlace(zone.rect, x, y)), { radius: 6, color: '#ff8a2a', weight: 2, fillColor: '#ff8a2a', fillOpacity: 0.35 })
+            .bindTooltip(one.name, { direction: 'top', className: 'tip' })
+            .addTo(targetLayer)
+      }
   })
   let areas3d: Areas3d | undefined
   let areasMade = $state(0)

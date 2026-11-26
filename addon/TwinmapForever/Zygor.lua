@@ -38,12 +38,28 @@ local function Build()
   -- Zygor is set to show tips below. Then the lines of the sticky steps Zygor shows with it.
   local profile = type(zgv.db) == "table" and type(zgv.db.profile) == "table" and zgv.db.profile or {}
   local goals = {}
+  -- The creatures to kill and the items to get of the lines still to do: the app shows where QuestieDB has them.
+  local kills, items, seen = {}, {}, {}
+  local function Wants(goal, status)
+    if status == "complete" or #kills + #items >= 8 then return end
+    local id = Num(goal.targetid)
+    if goal.action == "kill" then
+      for _, t in ipairs(type(goal.targets) == "table" and goal.targets or { { nil, id } }) do
+        local n = Num(t[2])
+        if n and not seen["k" .. n] then seen["k" .. n] = true; kills[#kills + 1] = n end
+      end
+    elseif (goal.action == "get" or goal.action == "collect") and id and not seen["i" .. id] then
+      seen["i" .. id] = true
+      items[#items + 1] = id
+    end
+  end
   local function Add(row) if #goals < GOALS then goals[#goals + 1] = row end end
   local function Lines(st, sticky)
     for _, goal in ipairs(type(st.goals) == "table" and st.goals or {}) do
       if #goals >= GOALS then return end
       local ok, status = pcall(goal.GetStatus, goal)
       if ok and status ~= "hidden" then
+        pcall(Wants, goal, status)
         local fine, text = pcall(goal.GetText, goal, true, false)
         text = fine and type(text) == "string" and text or ""
         local tip = Plain(goal.tooltip)
@@ -79,6 +95,8 @@ local function Build()
     n = Num(zgv.CurrentStepNum),
     of = type(guide.steps) == "table" and #guide.steps or nil,
     goals = goals,
+    k = #kills > 0 and kills or nil,
+    it = #items > 0 and items or nil,
   }
   -- Where Zygor's arrow points now: the goal it is walking the player to.
   local way = type(zgv.Pointer) == "table" and type(zgv.Pointer.ArrowFrame) == "table" and zgv.Pointer.ArrowFrame.waypoint

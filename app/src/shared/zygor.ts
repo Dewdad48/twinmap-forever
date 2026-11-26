@@ -22,6 +22,9 @@ export interface ZygorStep {
   lines: ZygorLine[]
   /** Where Zygor's arrow points now. */
   arrow: Pin | null
+  /** The creatures to kill and the items to get of the lines still to do (QuestieDB shows where). */
+  kills: number[]
+  items: number[]
 }
 
 const plain = (text: unknown, most: number): string =>
@@ -31,7 +34,7 @@ const count = (v: unknown): number | null => (Number.isInteger(v) && (v as numbe
 /** The section as it came off the strip, checked; null when Zygor shows no guide, or is not there. */
 export function zygorFrom(section: unknown): ZygorStep | null {
   if (typeof section !== 'object' || !section || Array.isArray(section)) return null
-  const { g, n, of, goals, m, x, y, name } = section as Record<string, unknown>
+  const { g, n, of, goals, m, x, y, name, k, it } = section as Record<string, unknown>
   if (!Array.isArray(goals)) return null
   const lines = goals.slice(0, 12).flatMap((goal: unknown): ZygorLine[] => {
     const { t: words, s, k, m: gm, x: gx, y: gy } = (typeof goal === 'object' && goal ? goal : {}) as Record<string, unknown>
@@ -40,5 +43,6 @@ export function zygorFrom(section: unknown): ZygorStep | null {
     return [{ text, state: s === 1 ? 'done' : s === 2 ? 'skip' : s === 3 ? 'tip' : 'todo', sticky: k === 1, at: pinFrom({ m: gm, x: gx, y: gy, name: text }) }]
   })
   const guide = plain(g, 80) || 'Zygor'
-  return { guide, step: count(n), of: count(of), lines, arrow: pinFrom({ m, x, y, name: plain(name, 80) || guide }) }
+  const ids = (t: unknown): number[] => (Array.isArray(t) ? t.filter((v): v is number => Number.isInteger(v) && v > 0 && v < 1e7).slice(0, 8) : [])
+  return { guide, step: count(n), of: count(of), lines, arrow: pinFrom({ m, x, y, name: plain(name, 80) || guide }), kills: ids(k), items: ids(it) }
 }
