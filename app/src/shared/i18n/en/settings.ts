@@ -48,7 +48,8 @@ export default {
   // In General: the app's window, switches, the text size and the hardware acceleration.
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
   ground3d: {
-    title: '3D ground (fork)',
+    title: 'Map (fork)',
+    cities: "The game's city maps over the capitals (2D)",
     hint: 'Takes effect when the window reloads.',
     ground: "Ground painted with the game's textures (close up)",
     buildings: "The game's buildings, simplified",

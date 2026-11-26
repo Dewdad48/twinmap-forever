@@ -19,6 +19,7 @@ import { LIQUID_TYPE_FILE, liquidOfName, WATER } from '../shared/water'
 import { WORLDS } from '../shared/world'
 import { gameLocale, installedBuild, openClientFiles, type ClientFiles } from './client-files'
 import { convertWorld3d, finishedWorld3d } from './world3d'
+import { CITIES_FILE, makeCities, UI_MAP_ART_TILE, UI_MAP_X_MAP_ART } from './cities'
 import { convertInteriors, ENCOUNTERS_FILE, finishedInteriors, INTERIORS_FILE, MAP_FILE, mapEntries, ROOM_PICTURES_FILE, roomPictures } from './interiors'
 import { sentKeys } from './keys'
 import { convertHeights, heightsDone } from './heights'
@@ -255,6 +256,15 @@ try {
     }
     // Darrell's fork: the game's ground textures and buildings for the 3D view, in turns with the worker's
     // other work (world3d.ts). Without them the 3D view is as before; a failure is tried again at the next start.
+    // Darrell's fork: the game's maps of the capitals, for the 2D map (cities.ts). Quick: done first.
+    if (!existsSync(join(folder, CITIES_FILE)))
+      try {
+        const files = open()
+        const maps = JSON.parse(readFileSync(join(folder, MAPS_FILE), 'utf8')) as GameMap[]
+        makeCities(maps, table(files.read(UI_MAP_X_MAP_ART, true)!), table(files.read(UI_MAP_ART_TILE, true)!), (id) => files.read(id, true), folder)
+      } catch {
+        // tried again at the next start
+      }
     // The dungeons and raids with ground of their own (Razorfen Kraul, Razorfen Downs, Maraudon...): their
     // heights for the 3D view as the continents have them, then their textures and buildings with the continents'.
     if (!finishedWorld3d(folder)) {

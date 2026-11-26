@@ -3,6 +3,7 @@
   // character as an arrow. It follows the character until the player drags the map away.
   // Inside a dungeon or a raid it shows that instead: its rooms, its bosses, its entrance.
   import { TILES } from './web'
+  import { realismOn } from './realism'
   import { layout as sides, setMapRight } from './layout.svelte'
   import type { Terrain } from './terrain3d'
   import type { Compass } from './compass'
@@ -380,6 +381,27 @@
     // Under the 3D view no ground is drawn: its tiles would be read and decoded for nothing.
     if (!threeD) for (const layer of shown) layer.addTo(map)
   }
+
+  // Darrell's fork: the game's own maps of the capitals (main/cities.ts), over the ground where each
+  // city lies, so its streets and buildings read clearly. In 2D, on the continent on show; a switch in Settings.
+  let cityMaps = $state<{ id: number; continent: number; box: Box }[]>([])
+  const askCities = (): void =>
+    void fetch(`${TILES}/cities.json`)
+      .then((a) => (a.ok ? (a.json() as Promise<typeof cityMaps>) : []))
+      .then((l) => {
+        cityMaps = l
+        if (!l.length) window.setTimeout(askCities, 60_000)
+      })
+      .catch(() => window.setTimeout(askCities, 60_000))
+  askCities()
+  let cityLayers: L.Layer[] = []
+  $effect(() => {
+    for (const l of cityLayers) l.remove()
+    cityLayers = []
+    if (!map || inside || threeD || !realismOn('cities')) return
+    for (const c of cityMaps)
+      if (c.continent === continent) cityLayers.push(L.imageOverlay(`${TILES}/cities/${c.id}.png`, boundsOfBox(c.box), { opacity: 0.88, interactive: false, className: 'city-map' }).addTo(map))
+  })
 
   // The shaded relief of the continent on show (main/heights.ts), over its ground and under the
   // rooms, in soft light: its grey of level ground leaves the map as it is. Once the list of the

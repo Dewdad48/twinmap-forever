@@ -115,7 +115,7 @@
       <!-- Darrell's fork: each part of the more lifelike 3D ground, to turn off again if it does not help. -->
       <div class="setting">
         <p class="hint"><b>{t('settings.ground3d.title')}</b> {t('settings.ground3d.hint')}</p>
-        {#each ['ground', 'buildings', 'shadows', 'rock', 'stem'] as const as part (part)}
+        {#each ['cities', 'ground', 'buildings', 'shadows', 'rock', 'stem'] as const as part (part)}
           <label class="choice"><input type="checkbox" class="check" checked={realismOn(part)} onchange={(e) => setRealism(part, e.currentTarget.checked)} />{t(`settings.ground3d.${part}`)}</label>
         {/each}
         <div class="line"><button class="btn" onclick={() => location.reload()}>{t('settings.ground3d.reload')}</button></div>
