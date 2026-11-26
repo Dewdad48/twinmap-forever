@@ -61,7 +61,7 @@ export function convertWorld3d(read: (id: number) => Buffer | null, folder: stri
         if (!existsSync(file)) {
           const b = get(tex0), g = b && groundLayers(b, !!(flags & 0x84))
           if (g) {
-            keep(file, () => deflateSync(packGround(g), { level: 6 }))
+            keep(file, () => deflateSync(packGround(g), { level: 9 }))
             g.textures.forEach((t) => textures.add(t))
             blocks++
           }
@@ -93,7 +93,7 @@ export function convertWorld3d(read: (id: number) => Buffer | null, folder: stri
     mkdirSync(join(folder, world.name), { recursive: true })
     writeFileSync(join(folder, world.name, 'buildings.json'), JSON.stringify(list))
   }
-  for (const t of textures) keep(join(folder, 'gtex', `${t}.bin`), () => deflateSync(groundTexture(get(t)), { level: 6 }))
+  for (const t of textures) keep(join(folder, 'gtex', `${t}.bin`), () => deflateSync(groundTexture(get(t)), { level: 9 }))
   const averages = new Map<number, [number, number, number]>()
   const average = (t: number): [number, number, number] => {
     if (!averages.has(t)) {
@@ -108,7 +108,7 @@ export function convertWorld3d(read: (id: number) => Buffer | null, folder: stri
     }
     return averages.get(t)!
   }
-  for (const f of shapes) keep(join(folder, 'wmo', `${f}.bin`), () => deflateSync(buildingShape(get(f), get, average), { level: 6 }))
+  for (const f of shapes) keep(join(folder, 'wmo', `${f}.bin`), () => deflateSync(buildingShape(get(f), get, average), { level: 9 }))
   if (!only) writeFileSync(join(folder, WORLD3D_FILE), JSON.stringify({ format: FORMAT, blocks, buildings, shapes: shapes.size }))
   return { blocks, buildings, shapes: shapes.size }
 }

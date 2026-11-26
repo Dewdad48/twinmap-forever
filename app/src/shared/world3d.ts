@@ -24,9 +24,9 @@ export function chunksOf(b: Buffer): Chunked[] {
   return out
 }
 
-/** Points of alpha a side of a chunk, and of a block (16 chunks). */
+/** Points of alpha a side of a chunk as the game has them, and of a block (16 chunks) as kept: half as many, each the average of four. */
 export const ALPHA = 64
-export const GROUND_SIDE = ALPHA * 16
+export const GROUND_SIDE = (ALPHA / 2) * 16
 export const NO_LAYER = 255
 
 export interface GroundLayers {
@@ -34,8 +34,8 @@ export interface GroundLayers {
   textures: number[]
   /** For each chunk, row first, its four layers' textures (NO_LAYER past the last). */
   layers: Uint8Array // 256 x 4
-  /** For each of the 1024 x 1024 points of the block, row first, how much layers 2, 3 and 4 cover it, 0..255. */
-  alpha: Uint8Array // 1024 x 1024 x 3
+  /** For each of the 512 x 512 points of the block, row first, how much layers 2, 3 and 4 cover it, 0..255. */
+  alpha: Uint8Array // 512 x 512 x 3
 }
 
 /** bigAlpha: the world file says alpha is kept 8 bits a point (MPHD flags 0x4 or 0x80); else 4. */
@@ -58,8 +58,12 @@ export function groundLayers(tex0: Buffer, bigAlpha: boolean): GroundLayers | nu
       layers[n * 4 + l] = tex < NO_LAYER ? tex : NO_LAYER
       if (l === 0 || !(flags & 0x100) || !mcal) continue
       const points = alphaOf(mcal.data, offset, !!(flags & 0x200), bigAlpha)
-      for (let y = 0; y < ALPHA; y++)
-        for (let x = 0; x < ALPHA; x++) alpha[((cr * ALPHA + y) * GROUND_SIDE + cc * ALPHA + x) * 3 + l - 1] = points[y * ALPHA + x]!
+      const half = ALPHA / 2
+      for (let y = 0; y < half; y++)
+        for (let x = 0; x < half; x++) {
+          const k = y * 2 * ALPHA + x * 2
+          alpha[((cr * half + y) * GROUND_SIDE + cc * half + x) * 3 + l - 1] = (points[k]! + points[k + 1]! + points[k + ALPHA]! + points[k + ALPHA + 1]! + 2) >> 2
+        }
     }
   })
   return { textures, layers, alpha }
@@ -87,10 +91,10 @@ function alphaOf(mcal: Buffer, at: number, compressed: boolean, big: boolean): U
   return out
 }
 
-/** A block's ground layers as a file: "TMG1", texture count (u16), the numbers (u32 each), the layers, the alpha. */
+/** A block's ground layers as a file: "TMG2", texture count (u16), the numbers (u32 each), the layers, the alpha. */
 export function packGround(g: GroundLayers): Buffer {
   const head = Buffer.alloc(6 + g.textures.length * 4)
-  head.write('TMG1', 0, 'latin1')
+  head.write('TMG2', 0, 'latin1')
   head.writeUInt16LE(g.textures.length, 4)
   g.textures.forEach((t, i) => head.writeUInt32LE(t, 6 + i * 4))
   return Buffer.concat([head, Buffer.from(g.layers), Buffer.from(g.alpha)])
@@ -98,7 +102,7 @@ export function packGround(g: GroundLayers): Buffer {
 
 export function unpackGround(b: Uint8Array): GroundLayers | null {
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength)
-  if (String.fromCharCode(b[0]!, b[1]!, b[2]!, b[3]!) !== 'TMG1') return null
+  if (String.fromCharCode(b[0]!, b[1]!, b[2]!, b[3]!) !== 'TMG2') return null
   const n = v.getUint16(4, true)
   const textures = Array.from({ length: n }, (_, i) => v.getUint32(6 + i * 4, true))
   let at = 6 + n * 4
