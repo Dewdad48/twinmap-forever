@@ -15,7 +15,10 @@ for (const t of g.textures.slice(0, 3)) { const img = decodeBlp(read(t)!); let r
 const root = read(7964229)!
 for (const lod of [0, 1, 2, 3]) {
   const r = buildingRoot(root, lod)!; let v = 0, t = 0, out = 0, miss = 0
-  for (const gr of r.groups) { if (!gr.outside) continue; out++; const f = read(gr.file); if (!f) { miss++; continue } const m = buildingGroup(f); if (!m) continue; v += m.positions.length / 3; t += m.indices.length / 3 }
+  for (const gr of r.groups) { out++; const f = read(gr.file); if (!f) { miss++; continue } const m = buildingGroup(f); if (!m) continue; v += m.positions.length / 3; t += m.indices.length / 3 }
   console.log('lod', lod, 'outside groups', out, 'missing', miss, 'verts', v, 'tris', t)
 }
 const r0 = buildingRoot(root, 0)!; console.log('materials', r0.materials.length, r0.materials.slice(0, 6))
+
+let all = 0
+for (let c = 37; c <= 43; c++) for (let rr = 25; rr <= 31; rr++) { const o = read(maid.readUInt32LE((rr * 64 + c) * 32 + 4)); if (!o) continue; const ch = chunksOf(o); const modf = ch.find((x) => x.tag === 'MODF'); const mddf = ch.find((x) => x.tag === 'MDDF'); const ws = modf ? Array.from({ length: modf.data.length / 64 }, (_, i) => modf.data.readUInt32LE(i * 64)) : []; console.log(c, rr, 'wmos', ws.join(','), 'doodads', mddf ? mddf.data.length / 36 : 0) }
