@@ -33,7 +33,11 @@ export function finishedWorld3d(folder: string): boolean {
 }
 
 /** only: the blocks to do (row * 64 + column), for a trial; all when left out. */
-export function convertWorld3d(read: (id: number) => Buffer | null, folder: string, only?: Set<number>): { blocks: number; buildings: number; shapes: number } {
+// Between blocks and buildings the worker's other work gets its turn: the pictures the screens ask
+// for while this runs (item-icons.ts) are answered at once, not after it.
+const breathe = (): Promise<void> => new Promise((go) => setImmediate(go))
+
+export async function convertWorld3d(read: (id: number) => Buffer | null, folder: string, only?: Set<number>): Promise<{ blocks: number; buildings: number; shapes: number }> {
   const get = (id: number): Buffer | null => {
     try {
       return id ? read(id) : null
@@ -53,6 +57,7 @@ export function convertWorld3d(read: (id: number) => Buffer | null, folder: stri
     const standing = new Map<number, Standing>() // by the number the game gives each: one may lie on several blocks
     for (let block = 0; block < BLOCKS * BLOCKS; block++) {
       if (only && !only.has(block)) continue
+      if (block % 8 === 0) await breathe()
       const column = block % BLOCKS, row = Math.floor(block / BLOCKS)
       const tex0 = maid.readUInt32LE(block * 32 + 12), obj0 = maid.readUInt32LE(block * 32 + 4)
       if (tex0) {
@@ -92,8 +97,14 @@ export function convertWorld3d(read: (id: number) => Buffer | null, folder: stri
     mkdirSync(join(folder, world.name), { recursive: true })
     writeFileSync(join(folder, world.name, 'buildings.json'), JSON.stringify(list))
   }
-  for (const t of textures) keep(join(folder, 'gtex', `${t}.bin`), () => deflateSync(groundTexture(get(t)), { level: 9 }))
-  for (const f of shapes) keep(join(folder, 'wmo2', `${f}.bin`), () => deflateSync(buildingShape(get(f), get), { level: 9 }))
+  for (const t of textures) {
+    keep(join(folder, 'gtex', `${t}.bin`), () => deflateSync(groundTexture(get(t)), { level: 9 }))
+    await breathe()
+  }
+  for (const f of shapes) {
+    keep(join(folder, 'wmo2', `${f}.bin`), () => deflateSync(buildingShape(get(f), get), { level: 9 }))
+    await breathe()
+  }
   if (!only) writeFileSync(join(folder, WORLD3D_FILE), JSON.stringify({ format: FORMAT, blocks, buildings, shapes: shapes.size }))
   return { blocks, buildings, shapes: shapes.size }
 }

@@ -253,14 +253,11 @@ try {
     } catch {
       // tried again at the next start
     }
-    // Darrell's fork: the game's ground textures and buildings for the 3D view. Without them the 3D view is as before.
-    try {
-      if (!finishedWorld3d(folder)) {
-        const files = open()
-        convertWorld3d((id) => files.read(id, true), folder)
-      }
-    } catch {
-      // tried again at the next start
+    // Darrell's fork: the game's ground textures and buildings for the 3D view, in turns with the worker's
+    // other work (world3d.ts). Without them the 3D view is as before; a failure is tried again at the next start.
+    if (!finishedWorld3d(folder)) {
+      const files = open()
+      void convertWorld3d((id) => files.read(id, true), folder).catch(() => {})
     }
     // Now the map holds all these keys could open. One it was made with and the cache has lost stays listed.
     writeFileSync(keysFile, JSON.stringify([...new Set([...usedKeys, ...keys.keys()])].sort((a, b) => a - b)))
