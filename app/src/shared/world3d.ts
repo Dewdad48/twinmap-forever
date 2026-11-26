@@ -114,8 +114,9 @@ export function unpackGround(b: Uint8Array): GroundLayers | null {
 // ---------------------------------------------------------------- buildings
 
 export interface BuildingRoot {
-  /** Each material's first texture, a file number (0: none). */
+  /** Each material's first texture, a file number (0: none), and whether it is cut out (blend mode 1: holes where the texture is clear). */
   materials: number[]
+  cutout: boolean[]
   /** The groups' files for the level of detail chosen, and whether each is outside. */
   groups: { file: number; outside: boolean }[]
 }
@@ -127,6 +128,7 @@ export function buildingRoot(file: Buffer, lod = 99): BuildingRoot | null {
   if (!mohd || !mogi || !gfid) return null
   const count = mohd.data.readUInt32LE(4)
   const materials = momt ? Array.from({ length: momt.data.length >> 6 }, (_, i) => momt.data.readUInt32LE(i * 64 + 12)) : []
+  const cutout = momt ? Array.from({ length: momt.data.length >> 6 }, (_, i) => momt.data.readUInt32LE(i * 64 + 8) !== 0) : []
   const ids = Array.from({ length: gfid.data.length >> 2 }, (_, i) => gfid.data.readUInt32LE(i * 4))
   const levels = Math.max(1, Math.floor(ids.length / Math.max(1, count)))
   const groups: BuildingRoot['groups'] = []
@@ -137,7 +139,7 @@ export function buildingRoot(file: Buffer, lod = 99): BuildingRoot | null {
     for (let l = Math.min(lod, levels - 1); l >= 0 && !file; l--) file = ids[l * count + g] ?? 0
     groups.push({ file, outside: !!(flags & 0x8) })
   }
-  return { materials, groups }
+  return { materials, cutout, groups }
 }
 
 export interface BuildingMesh {
@@ -148,6 +150,8 @@ export interface BuildingMesh {
   materials: Uint16Array
   /** r, g, b of each point from the group's own colours, 255 where it has none. */
   shades: Uint8Array
+  /** u, v of each point on its material's texture (MOTV). */
+  uvs: Float32Array
   indices: Uint32Array
 }
 
@@ -157,7 +161,7 @@ export function buildingGroup(file: Buffer): BuildingMesh | null {
   if (!mogp) return null
   const inner = chunksOf(mogp.data.subarray(68))
   const get = (tag: string): Buffer | undefined => inner.find((c) => c.tag === tag)?.data
-  const movt = get('MOVT'), monr = get('MONR'), movi = get('MOVI'), moba = get('MOBA'), mocv = get('MOCV')
+  const movt = get('MOVT'), monr = get('MONR'), movi = get('MOVI'), moba = get('MOBA'), mocv = get('MOCV'), motv = get('MOTV')
   if (!movt || !movi || !moba) return null
   const n = Math.floor(movt.length / 12)
   const positions = new Float32Array(n * 3), normals = new Float32Array(n * 3)
@@ -173,6 +177,8 @@ export function buildingGroup(file: Buffer): BuildingMesh | null {
       shades[i * 3 + 1] = Math.min(255, mocv[i * 4 + 1]! * 2)
       shades[i * 3 + 2] = Math.min(255, mocv[i * 4]! * 2)
     }
+  const uvs = new Float32Array(n * 2)
+  if (motv) for (let i = 0; i < n * 2 && (i + 1) * 4 <= motv.length; i++) uvs[i] = motv.readFloatLE(i * 4)
   const materials = new Uint16Array(n)
   const indices: number[] = []
   for (let b = 0; b + 24 <= moba.length; b += 24) {
@@ -187,5 +193,5 @@ export function buildingGroup(file: Buffer): BuildingMesh | null {
   }
   // Whole triangles only.
   indices.length -= indices.length % 3
-  return { positions, normals, materials, shades, indices: Uint32Array.from(indices) }
+  return { positions, normals, materials, shades, uvs, indices: Uint32Array.from(indices) }
 }

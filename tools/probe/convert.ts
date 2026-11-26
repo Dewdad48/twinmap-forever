@@ -9,4 +9,4 @@ for (let c = 39; c <= 41; c++) for (let r = 27; r <= 29; r++) only.add(r * 64 + 
 const t = Date.now()
 console.log(convertWorld3d((id) => cf.read(id, true), out, only), (Date.now() - t) / 1000, 's')
 const walk = (d: string): [number, number] => readdirSync(d).reduce<[number, number]>((a, n) => { const p = join(d, n), s = statSync(p); if (s.isDirectory()) { const [x, y] = walk(p); return [a[0] + x, a[1] + y] } return [a[0] + 1, a[1] + s.size] }, [0, 0])
-for (const d of ['kalimdor/ground', 'gtex', 'wmo']) { try { const [n, b] = walk(join(out, d)); console.log(d, n, 'files', (b / 1e6).toFixed(1), 'MB') } catch { console.log(d, 'none') } }
+for (const d of ['kalimdor/ground', 'gtex', 'wmo2']) { try { const [n, b] = walk(join(out, d)); console.log(d, n, 'files', (b / 1e6).toFixed(1), 'MB') } catch { console.log(d, 'none') } }

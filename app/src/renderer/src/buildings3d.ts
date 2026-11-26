@@ -16,9 +16,8 @@ export class Buildings {
   private folder = ''
   private standing: Promise<Standing[]> | null = null
   private list: Standing[] = []
-  private shapes = new Map<number, Promise<THREE.BufferGeometry | null>>()
+  private shapes = new Map<number, Promise<Shape | null>>()
   private made = new Map<Standing, THREE.Mesh>()
-  private material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })
   private changed = false
 
   constructor(
@@ -76,7 +75,7 @@ export class Buildings {
   }
 
   private place(s: Standing): void {
-    const mesh = new THREE.Mesh(undefined, this.material)
+    const mesh = new THREE.Mesh()
     mesh.castShadow = mesh.receiveShadow = this.shadows
     mesh.matrixAutoUpdate = false
     // The building's own x, y (z up) into the ground's: x east, z south, y up; turned as interiors.ts lays out its rooms.
@@ -88,45 +87,102 @@ export class Buildings {
     const folder = this.folder
     void this.shape(s.f).then((g) => {
       if (!g || folder !== this.folder || this.made.get(s) !== mesh) return
-      mesh.geometry = g
+      mesh.geometry = g.geometry
+      mesh.material = g.material
+      mesh.onBeforeRender = g.bind
       mesh.visible = true
       mesh.updateMatrixWorld(true)
       this.changed = true
     })
   }
 
-  private shape(file: number): Promise<THREE.BufferGeometry | null> {
+  private shape(file: number): Promise<Shape | null> {
     let p = this.shapes.get(file)
     if (!p) {
-      p = this.inflated(`${this.tiles}/wmo/${file}.bin`).then((b) => (b ? geometryOf(b) : null))
+      p = this.inflated(`${this.tiles}/wmo2/${file}.bin`).then((b) => (b ? shapeOf(b) : null))
       this.shapes.set(file, p)
     }
     return p
   }
 
   dispose(): void {
-    this.material.dispose()
-    for (const p of this.shapes.values()) void p.then((g) => g?.dispose())
+    for (const p of this.shapes.values())
+      void p.then((g) => {
+        g?.geometry.dispose()
+        g?.material.dispose()
+        g?.textures.dispose()
+      })
   }
 }
 
-/** "TMB1", points, indices, the indices, the points, their normals (i8 x 3) and colours (u8 x 3). */
-function geometryOf(b: Uint8Array): THREE.BufferGeometry | null {
-  if (String.fromCharCode(b[0]!, b[1]!, b[2]!, b[3]!) !== 'TMB1') return null
+interface Shape {
+  geometry: THREE.BufferGeometry
+  material: THREE.MeshLambertMaterial
+  textures: THREE.DataArrayTexture
+  /** Before a copy of it is drawn: its textures in the shared uniform. */
+  bind: () => void
+}
+
+const SIDE = 64 // pixels a side of a building's textures, as main/world3d.ts keeps them
+
+// Every building's material shares one compiled program (three.js runs onBeforeCompile for the first
+// only): its textures go in this uniform just before each building is drawn. A material for each
+// shape, so three.js sets the uniform again whenever it goes from one shape to another.
+const shared = { uBuilding: { value: null as THREE.DataArrayTexture | null } }
+
+function materialFor(): THREE.MeshLambertMaterial {
+  const m = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide })
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uBuilding = shared.uBuilding
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 bUv;\nattribute float bLayer;\nvarying vec2 vBUv;\nflat varying float vBLayer;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBUv = bUv;\nvBLayer = bLayer;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform highp sampler2DArray uBuilding;\nvarying vec2 vBUv;\nflat varying float vBLayer;')
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+{
+  vec4 t = texture(uBuilding, vec3(vBUv, vBLayer));
+  if (t.a < 0.5) discard;
+  diffuseColor.rgb *= t.rgb;
+}`,
+      )
+  }
+  m.customProgramCacheKey = () => 'building'
+  return m
+}
+
+/** "TMB2", points, indices, textures, then the indices, the points, their u, v, their textures, their normals (i8 x 3), the textures. */
+function shapeOf(b: Uint8Array): Shape | null {
+  if (String.fromCharCode(b[0]!, b[1]!, b[2]!, b[3]!) !== 'TMB2') return null
   const v = new DataView(b.buffer, b.byteOffset, b.byteLength)
-  const n = v.getUint32(4, true), count = v.getUint32(8, true)
-  if (!n || !count) return null
-  let at = b.byteOffset + 12
+  const n = v.getUint32(4, true), count = v.getUint32(8, true), pictures = v.getUint32(12, true)
+  if (!n || !count || !pictures) return null
+  let at = b.byteOffset + 16
   const copy = (bytes: number): ArrayBuffer => (b.buffer as ArrayBuffer).slice(at, (at += bytes))
-  const index = new Uint32Array(copy(count * 4)), pos = new Float32Array(copy(n * 12)), nrm = new Int8Array(copy(n * 3)), col = new Uint8Array(copy(n * 3))
-  // The colours are as a picture has them (sRGB); the lighting works on linear ones.
-  const linear = new Float32Array(n * 3)
-  for (let i = 0; i < linear.length; i++) linear[i] = Math.pow(col[i]! / 255, 2.2)
+  const index = new Uint32Array(copy(count * 4)), pos = new Float32Array(copy(n * 12)), uv = new Float32Array(copy(n * 8))
+  const layer16 = new Uint16Array(copy(n * 2)), nrm = new Int8Array(copy(n * 3)), rgba = new Uint8Array(copy(pictures * SIDE * SIDE * 4))
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3, true))
-  g.setAttribute('color', new THREE.BufferAttribute(linear, 3))
+  g.setAttribute('bUv', new THREE.BufferAttribute(uv, 2))
+  g.setAttribute('bLayer', new THREE.BufferAttribute(Float32Array.from(layer16), 1))
   g.setIndex(new THREE.BufferAttribute(index, 1))
   g.computeBoundingSphere()
-  return g
+  const textures = new THREE.DataArrayTexture(rgba, SIDE, SIDE, pictures)
+  textures.wrapS = textures.wrapT = THREE.RepeatWrapping
+  textures.minFilter = THREE.LinearMipmapLinearFilter
+  textures.magFilter = THREE.LinearFilter
+  textures.generateMipmaps = true
+  textures.colorSpace = THREE.SRGBColorSpace
+  textures.needsUpdate = true
+  return {
+    geometry: g,
+    material: materialFor(),
+    textures,
+    bind: () => {
+      shared.uBuilding.value = textures
+    },
+  }
 }

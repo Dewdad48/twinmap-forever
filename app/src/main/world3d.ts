@@ -6,21 +6,20 @@
 //   <world>/ground/<column>/<row>.bin   a block's ground layers (packGround), deflated
 //   gtex/<file>.bin                     a ground texture, 128 x 128, three bytes a pixel ("TMT1"), deflated
 //   <world>/buildings.json              the buildings standing in a continent: file, where, how turned
-//   wmo/<file>.bin                      a building's shape, coarsened to the size of the 3D view ("TMB1"), deflated
+//   wmo2/<file>.bin                     a building's shape at its coarsest, with small textures ("TMB2"), deflated
 //   world3d.json                        written last: the format, for a later app to make it again
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { deflateSync, inflateSync } from 'node:zlib'
-import { decodeBlp } from '../shared/blp'
+import { decodeBlp, decodeBlpCutout } from '../shared/blp'
 import { BLOCKS, WORLDS } from '../shared/world'
 import { buildingGroup, buildingRoot, chunksOf, groundLayers, packGround } from '../shared/world3d'
 import { EncryptedFileError } from './client-files'
 import { keep } from './tiles'
 
 export const WORLD3D_FILE = 'world3d.json'
-const FORMAT = 1
+const FORMAT = 2
 const TEXTURE = 128 // pixels a side of a ground texture as kept
-const CELL = 0.6 // yards: points of a building closer than this become one
 
 /** A building standing in a continent: its file, where (yards from the top left, u east, v south, h up), its turn (degrees) and size. */
 export interface Standing { f: number; u: number; v: number; h: number; t: number; s: number }
@@ -94,21 +93,7 @@ export function convertWorld3d(read: (id: number) => Buffer | null, folder: stri
     writeFileSync(join(folder, world.name, 'buildings.json'), JSON.stringify(list))
   }
   for (const t of textures) keep(join(folder, 'gtex', `${t}.bin`), () => deflateSync(groundTexture(get(t)), { level: 9 }))
-  const averages = new Map<number, [number, number, number]>()
-  const average = (t: number): [number, number, number] => {
-    if (!averages.has(t)) {
-      let c: [number, number, number] = [150, 140, 125]
-      try {
-        const b = get(t)
-        if (b) c = averageOf(decodeBlp(b).rgb)
-      } catch {
-        // a texture not read: a stone grey
-      }
-      averages.set(t, c)
-    }
-    return averages.get(t)!
-  }
-  for (const f of shapes) keep(join(folder, 'wmo', `${f}.bin`), () => deflateSync(buildingShape(get(f), get, average), { level: 9 }))
+  for (const f of shapes) keep(join(folder, 'wmo2', `${f}.bin`), () => deflateSync(buildingShape(get(f), get), { level: 9 }))
   if (!only) writeFileSync(join(folder, WORLD3D_FILE), JSON.stringify({ format: FORMAT, blocks, buildings, shapes: shapes.size }))
   return { blocks, buildings, shapes: shapes.size }
 }
@@ -147,55 +132,92 @@ function groundTexture(b: Buffer | null): Buffer {
   return out
 }
 
-function averageOf(rgb: Buffer): [number, number, number] {
-  const s = [0, 0, 0], n = rgb.length / 3
-  for (let i = 0; i < rgb.length; i += 3) ((s[0] += rgb[i]!), (s[1] += rgb[i + 1]!), (s[2] += rgb[i + 2]!))
-  return [Math.round(s[0]! / n), Math.round(s[1]! / n), Math.round(s[2]! / n)]
-}
-
 /**
- * A building's shape for the 3D view: all its groups at their coarsest, points within CELL of one
- * another made one, each point coloured by its material's texture and the group's own colours.
- * "TMB1", points (u32), indices (u32), the indices (u32 each), the points (x, y, z: f32, in the
- * building's frame, z up), their normals (i8 x 3) and colours (u8 x 3).
+ * A building's shape for the 3D view, as the game draws it at its coarsest: every group, each point
+ * with its place on its material's texture, and the textures small (BUILDING_TEXTURE pixels a side,
+ * with their holes), as a miniature needs them.
+ * "TMB2", points (u32), indices (u32), textures (u32), then the indices (u32 each), the points
+ * (x, y, z: f32, in the building's frame, z up), their u, v (f32 x 2), the texture of each (u16),
+ * their normals (i8 x 3), and the textures (red, green, blue, alpha bytes).
  */
-export function buildingShape(root: Buffer | null, get: (id: number) => Buffer | null, average: (texture: number) => [number, number, number]): Buffer {
+export function buildingShape(root: Buffer | null, get: (id: number) => Buffer | null): Buffer {
   const r = root && buildingRoot(root)
-  const at = new Map<string, number>()
-  const pos: number[] = [], nrm: number[] = [], col: number[] = [], idx: number[] = []
+  const pos: number[] = [], uv: number[] = [], layer: number[] = [], nrm: number[] = [], idx: number[] = []
+  // The building's textures, each once, in the order first met.
+  const layers = new Map<string, number>(), pictures: Uint8Array[] = []
+  const layerOf = (material: number): number => {
+    const file = r?.materials[material] ?? 0, cut = !!r?.cutout[material], key = `${file} ${cut}`
+    let l = layers.get(key)
+    if (l === undefined) {
+      l = pictures.length
+      layers.set(key, l)
+      pictures.push(smallPicture(get(file), cut))
+    }
+    return l
+  }
   for (const g of r?.groups ?? []) {
     const f = get(g.file), m = f && buildingGroup(f)
     if (!m) continue
-    const map = new Int32Array(m.positions.length / 3)
-    for (let i = 0; i < map.length; i++) {
-      const x = m.positions[i * 3]!, y = m.positions[i * 3 + 1]!, z = m.positions[i * 3 + 2]!
-      const key = `${Math.round(x / CELL)},${Math.round(y / CELL)},${Math.round(z / CELL)}`
-      let k = at.get(key)
-      if (k === undefined) {
-        k = pos.length / 3
-        at.set(key, k)
-        pos.push(x, y, z)
-        nrm.push(...[0, 1, 2].map((c) => Math.round(Math.max(-1, Math.min(1, m.normals[i * 3 + c]!)) * 127)))
-        const base = average(r!.materials[m.materials[i]!] ?? 0)
-        col.push(...[0, 1, 2].map((c) => Math.round((base[c]! * m.shades[i * 3 + c]!) / 255)))
-      }
-      map[i] = k
+    const base = pos.length / 3, n = m.positions.length / 3
+    for (let i = 0; i < n; i++) {
+      pos.push(m.positions[i * 3]!, m.positions[i * 3 + 1]!, m.positions[i * 3 + 2]!)
+      uv.push(m.uvs[i * 2]!, m.uvs[i * 2 + 1]!)
+      layer.push(layerOf(m.materials[i]!))
+      for (let c = 0; c < 3; c++) nrm.push(Math.round(Math.max(-1, Math.min(1, m.normals[i * 3 + c]!)) * 127))
     }
-    for (let t = 0; t + 2 < m.indices.length; t += 3) {
-      const a = map[m.indices[t]!]!, b = map[m.indices[t + 1]!]!, c = map[m.indices[t + 2]!]!
-      if (a !== b && b !== c && a !== c) idx.push(a, b, c)
-    }
+    for (const k of m.indices) idx.push(base + k)
   }
-  const n = pos.length / 3
-  const out = Buffer.alloc(12 + idx.length * 4 + n * 12 + n * 6)
-  out.write('TMB1', 0, 'latin1')
+  const n = pos.length / 3, side = BUILDING_TEXTURE
+  const out = Buffer.alloc(16 + idx.length * 4 + n * 12 + n * 8 + n * 2 + n * 3 + pictures.length * side * side * 4)
+  out.write('TMB2', 0, 'latin1')
   out.writeUInt32LE(n, 4)
   out.writeUInt32LE(idx.length, 8)
-  let o = 12
+  out.writeUInt32LE(pictures.length, 12)
+  let o = 16
   for (const i of idx) ((out.writeUInt32LE(i, o)), (o += 4))
   for (const p of pos) ((out.writeFloatLE(p, o)), (o += 4))
+  for (const t of uv) ((out.writeFloatLE(t, o)), (o += 4))
+  for (const l of layer) ((out.writeUInt16LE(l, o)), (o += 2))
   for (const v of nrm) ((out.writeInt8(v, o)), (o += 1))
-  for (const v of col) ((out.writeUInt8(v, o)), (o += 1))
+  for (const p of pictures) (out.set(p, o), (o += p.length))
   return out
 }
 
+export const BUILDING_TEXTURE = 64
+
+/** A texture at BUILDING_TEXTURE pixels a side, averaged; a cut out one keeps its holes. Stone grey when it cannot be read. */
+function smallPicture(b: Buffer | null, cut: boolean): Uint8Array {
+  const side = BUILDING_TEXTURE, out = new Uint8Array(side * side * 4)
+  let img: { width: number; height: number; rgba: Uint8Array } | null = null
+  try {
+    img = b ? decodeBlpCutout(b) : null
+  } catch {
+    img = null
+  }
+  if (!img) {
+    for (let k = 0; k < side * side; k++) out.set([150, 140, 125, 255], k * 4)
+    return out
+  }
+  const fx = img.width / side, fy = img.height / side
+  for (let y = 0; y < side; y++)
+    for (let x = 0; x < side; x++) {
+      let r = 0, g = 0, bl = 0, a = 0, n = 0
+      for (let yy = Math.floor(y * fy); yy < Math.max(Math.floor(y * fy) + 1, Math.floor((y + 1) * fy)); yy++)
+        for (let xx = Math.floor(x * fx); xx < Math.max(Math.floor(x * fx) + 1, Math.floor((x + 1) * fx)); xx++) {
+          const k = (Math.min(yy, img.height - 1) * img.width + Math.min(xx, img.width - 1)) * 4, w = img.rgba[k + 3]!
+          // Colour from the pixels that show, so holes do not darken their edges.
+          r += img.rgba[k]! * w
+          g += img.rgba[k + 1]! * w
+          bl += img.rgba[k + 2]! * w
+          a += w
+          n++
+        }
+      const o = (y * side + x) * 4
+      out[o] = a ? Math.round(r / a) : 0
+      out[o + 1] = a ? Math.round(g / a) : 0
+      out[o + 2] = a ? Math.round(bl / a) : 0
+      // Only a cut out material has holes; the alpha of any other is not transparency (it may be shine).
+      out[o + 3] = cut ? Math.round(a / n) : 255
+    }
+  return out
+}

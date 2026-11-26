@@ -76,7 +76,7 @@ export function servedFile(base: string, path: string): string | null {
   if (ground) return joinPath(base, ground[1]!, 'ground', ground[2]!, `${ground[3]}.bin`)
   const standing = /^\/([a-z]+)\/buildings\.json$/.exec(path)
   if (standing) return joinPath(base, standing[1]!, 'buildings.json')
-  const shape = /^\/(gtex|wmo)\/(\d{1,9})\.bin$/.exec(path)
+  const shape = /^\/(gtex|wmo2)\/(\d{1,9})\.bin$/.exec(path)
   if (shape) return joinPath(base, shape[1]!, `${shape[2]}.bin`)
   const item = /^\/(items|pictures)\/(\d{1,7})\.png$/.exec(path)
   if (item) return joinPath(base, item[1]!, `${item[2]}.png`)
