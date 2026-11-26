@@ -27,6 +27,8 @@ const WORLD = 64 * BLOCK_YARDS
 const FINEST = BLOCK_ZOOM + 1
 /** The nodes the tree starts from: 16 x 16 blocks each. */
 const ROOT = 2
+// Darrell's fork: yards over the point looked at, in a dungeon, above which buildings are cut away (buildings3d.ts).
+const DUNGEON_ROOF = 14
 /** Vertices a side of every node. */
 const N = 65
 /** Vertical field of view, in degrees. */
@@ -236,6 +238,7 @@ export class Terrain {
     // Darrell's fork: the game's ground textures near the camera, and its buildings (ground3d.ts, buildings3d.ts).
     if (realismOn('ground')) this.paint = new GroundPaint(TILES, inflated, this.renderer.capabilities.getMaxAnisotropy())
     if (realismOn('buildings')) {
+      this.renderer.localClippingEnabled = true
       this.buildings = new Buildings(TILES, inflated, !!this.sun)
       this.scene.add(this.buildings.group)
     }
@@ -666,7 +669,8 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     this.camera.far = distance * 4 + 2000
     this.camera.updateProjectionMatrix()
     if (this.sun) this.shine(distance)
-    if (this.buildings?.update(this.controls.target, distance)) this.dirty = true
+    // In a dungeon (its folder "i" and its number) the buildings over the point looked at are cut away: Razorfen's roof of thorns.
+    if (this.buildings?.update(this.controls.target, distance, this.folder.startsWith('i') ? DUNGEON_ROOF : null)) this.dirty = true
     this.compass.turn(this.controls.getPolarAngle() / 2, this.controls.getAzimuthalAngle())
     if (this.onBefore()) this.dirty = true
     // After the arrow is turned for this frame, so the view turns with it in the same frame, not one behind.

@@ -18,7 +18,7 @@ import { EncryptedFileError } from './client-files'
 import { keep } from './tiles'
 
 export const WORLD3D_FILE = 'world3d.json'
-const FORMAT = 3 // 3: the dungeons with ground as well
+const FORMAT = 4 // 3: the dungeons with ground as well; 4: and the list of those (dungeons3d.json)
 const TEXTURE = 128 // pixels a side of a ground texture as kept
 
 /** A building standing in a continent: its file, where (yards from the top left, u east, v south, h up), its turn (degrees) and size. */

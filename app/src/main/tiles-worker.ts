@@ -268,15 +268,20 @@ try {
         } catch {
           // the continents only
         }
+        // Which have ground to show in 3D: not those whose map is all rooms (Ragefire Chasm), whatever pictures they have.
+        const grounded: string[] = []
         for (const d of dungeons) {
           try {
             const wdt = files.read(d.file)
             if (wdt) convertHeights(wdt, (id) => files.read(id), join(folder, d.name), undefined, () => WATER)
+            const done = JSON.parse(readFileSync(join(folder, d.name, 'heights', 'done.json'), 'utf8')) as { blocks?: number }
+            if ((done.blocks ?? 0) > 0) grounded.push(d.name)
           } catch {
             // that one without its 3D ground
           }
           await new Promise((go) => setImmediate(go))
         }
+        writeFileSync(join(folder, 'dungeons3d.json'), JSON.stringify(grounded))
         await convertWorld3d((id) => files.read(id, true), folder, undefined, [...WORLDS, ...dungeons])
       })().catch(() => {})
     }
