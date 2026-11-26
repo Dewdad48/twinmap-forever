@@ -46,6 +46,15 @@ export default {
   },
 
   // In General: the app's window, switches, the text size and the hardware acceleration.
+  // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
+  ground3d: {
+    title: '3D ground (fork)',
+    hint: 'Takes effect when the window reloads.',
+    shadows: 'Hills cast shadows',
+    rock: 'Cliffs as rock instead of streaks',
+    stem: 'Pole over my arrow when zoomed out',
+    reload: 'Reload now',
+  },
   window: {
     onTop: 'Keep Twinmap on top of other windows',
     // Followed by a list of sizes: 80%, 90%, 100%...

@@ -5,7 +5,7 @@ name: Zygor build
 on:
   workflow_dispatch:
   push:
-    branches: [zygor]
+    branches: [zygor, 3d-realism]
 
 jobs:
   windows:
@@ -28,12 +28,12 @@ jobs:
       # and the app opens as it is.
       - run: npx electron-vite build
       - shell: bash # PowerShell splits the -c.name=value options at their dots
-        run: npx electron-builder --win nsis --publish never -c.extraMetadata.version="0.17.0-zygor.${{ github.run_number }}" -c.publish.owner=Dewdad48
+        run: npx electron-builder --win nsis --publish never -c.extraMetadata.version="0.17.0-${{ github.ref_name }}.${{ github.run_number }}" -c.publish.owner=Dewdad48
       - uses: actions/upload-artifact@v4
         with:
-          name: Twinmap-Zygor-Setup
+          name: Twinmap-${{ github.ref_name }}-Setup
           path: app/dist/*.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: TwinmapForever-addon
+          name: TwinmapForever-${{ github.ref_name }}-addon
           path: addon/TwinmapForever

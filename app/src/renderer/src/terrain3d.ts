@@ -17,6 +17,7 @@ import { DRY, TAR } from '../../shared/water'
 import { BLOCK_YARDS } from '../../shared/world'
 import { ROOF_STEP } from './inside3d'
 import { inApp, TILES } from './web'
+import { realismOn, rocky } from './realism'
 
 /** Yards a side of the world's grid. */
 const WORLD = 64 * BLOCK_YARDS
@@ -164,6 +165,9 @@ export class Terrain {
     liquids: THREE.Material[]
   }
   private observer: ResizeObserver
+  // Darrell's fork (realism.ts): the sun that casts the hills' shadows, when on.
+  private sun: THREE.DirectionalLight | null = null
+  private rock = realismOn('rock')
   readonly s3tc: boolean
   // What is inside the ground is drawn before it, from a scene of its own; and first of all alone, on a
   // picture (seen) the ground asks pixel by pixel: is a room behind me, how much ground has it over it,
@@ -214,6 +218,17 @@ export class Terrain {
     const sun = new THREE.DirectionalLight(0xffffff, (Math.PI * 0.5) / Math.sin(Math.PI / 4))
     sun.position.set(-Math.SQRT1_2, 1, -Math.SQRT1_2)
     this.scene.add(new THREE.AmbientLight(0xffffff, Math.PI * 0.5), sun)
+    // Darrell's fork: the hills cast shadows (not when drawn by the processor: too slow there).
+    if (realismOn('shadows') && !software) {
+      this.renderer.shadowMap.enabled = true
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      sun.castShadow = true
+      sun.shadow.mapSize.set(inApp ? 4096 : 2048, inApp ? 4096 : 2048)
+      sun.shadow.bias = -0.0004
+      sun.shadow.normalBias = 1.5
+      this.scene.add(sun.target)
+      this.sun = sun
+    }
     this.materials = {
       ground: new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
       pit: new THREE.MeshBasicMaterial({ color: PIT }),
@@ -601,6 +616,24 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     return n
   }
 
+  // The sun's shadows cover what the view can show, out to the fog, round the point looked at; the
+  // finer the closer the view. The sun stays where it was: north-west, 45 degrees up.
+  private shine(distance: number): void {
+    const sun = this.sun!,
+      at = this.controls.target,
+      reach = distance * 3.6,
+      back = reach + 3000
+    sun.target.position.copy(at)
+    sun.position.set(at.x - back * 0.5, at.y + back * Math.SQRT1_2, at.z - back * 0.5)
+    const c = sun.shadow.camera
+    c.left = c.bottom = -reach
+    c.right = c.top = reach
+    c.near = 1
+    c.far = back * 2
+    c.updateProjectionMatrix()
+    sun.shadow.normalBias = Math.max(0.5, (2 * reach) / sun.shadow.mapSize.x)
+  }
+
   private drawnAt = 0
   private tick(now: number): void {
     if (now - this.drawnAt < FRAME_MS) return
@@ -620,6 +653,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     this.camera.near = Math.max(1, distance / 200)
     this.camera.far = distance * 4 + 2000
     this.camera.updateProjectionMatrix()
+    if (this.sun) this.shine(distance)
     this.compass.turn(this.controls.getPolarAngle() / 2, this.controls.getAzimuthalAngle())
     if (this.onBefore()) this.dirty = true
     // After the arrow is turned for this frame, so the view turns with it in the same frame, not one behind.
@@ -945,6 +979,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     const material = texture ? this.groundWith(texture, !!roofed) : this.materials.ground
     const group = new THREE.Group(),
       land = new THREE.Mesh(ground, material)
+    land.castShadow = land.receiveShadow = !!this.sun
     if (roofed) land.renderOrder = -1 // see-through, yet before everything else that is: the ground is under it all
     group.add(land)
     if (pit.length) {
@@ -1051,7 +1086,13 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     let m = kept.get(texture)
     if (!m) {
       kept.set(texture, (m = new THREE.MeshLambertMaterial({ map: texture, side: THREE.DoubleSide, transparent: opens })))
-      if (opens) m.onBeforeCompile = (shader) => this.opening(shader)
+      const rock = this.rock
+      if (opens || rock)
+        m.onBeforeCompile = (shader) => {
+          if (rock) rocky(shader)
+          if (opens) this.opening(shader)
+        }
+      m.customProgramCacheKey = () => `${opens ? 'roof' : 'open'}${rock ? '-rock' : ''}`
     }
     return m
   }

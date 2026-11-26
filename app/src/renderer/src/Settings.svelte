@@ -11,6 +11,7 @@
   import type { GlyphName } from './marks'
   import qrcode from 'qrcode-generator'
   import { inApp } from './web'
+  import { realismOn, setRealism } from './realism'
   import { ZOOMS } from '../../shared/window'
   import { layout, setMapRight } from './layout.svelte'
   import { langNow, metresOn, metricOffered, num, t, type Key } from '../../shared/i18n'
@@ -111,6 +112,14 @@
         </div>
       {/if}
     {:else if cat === 'appearance'}
+      <!-- Darrell's fork: each part of the more lifelike 3D ground, to turn off again if it does not help. -->
+      <div class="setting">
+        <p class="hint"><b>{t('settings.ground3d.title')}</b> {t('settings.ground3d.hint')}</p>
+        {#each ['shadows', 'rock', 'stem'] as const as part (part)}
+          <label class="choice"><input type="checkbox" class="check" checked={realismOn(part)} onchange={(e) => setRealism(part, e.currentTarget.checked)} />{t(`settings.ground3d.${part}`)}</label>
+        {/each}
+        <div class="line"><button class="btn" onclick={() => location.reload()}>{t('settings.ground3d.reload')}</button></div>
+      </div>
       <div class="setting">
         <label class="choice">{t('settings.layout.label')} <select class="field size" value={layout.mapRight ? 'right' : 'left'} onchange={(e) => setMapRight(e.currentTarget.value === 'right')}><option value="left">{t('settings.layout.left')}</option><option value="right">{t('settings.layout.right')}</option></select></label>
         {#if !touch}<p class="hint">{t('settings.layout.hint')}</p>{/if}

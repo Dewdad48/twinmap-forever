@@ -4,6 +4,7 @@
 // and dark under, its true size but never too small to see, laid on the slope of the ground, with
 // a soft shadow where it touches, its outline through a hill that hides it, and a stem from afar.
 import * as THREE from 'three'
+import { realismOn } from './realism'
 import type { Terrain } from './terrain3d'
 import { turnAt, type Turn } from '../../shared/glide'
 
@@ -88,6 +89,9 @@ function body(): THREE.BufferGeometry {
 }
 
 const UP = new THREE.Vector3(0, 1, 0)
+
+// Darrell's fork: the pole can be turned off in Settings (realism.ts).
+const STEM = realismOn('stem')
 
 export class Arrow3d {
   // Lit by the sun of the view as the ground is, with no colour of its own: each face has its light.
@@ -210,7 +214,7 @@ export class Arrow3d {
     }
     this.sheet.needsUpdate = true
     // From afar, kept at its least size: a stem over it, to find it by.
-    this.stem.visible = least > LENGTH
+    this.stem.visible = least > LENGTH && STEM
     this.stem.position.copy(this.group.position)
     this.stem.scale.set(size, size * 3, size)
     const p = this.group.position,

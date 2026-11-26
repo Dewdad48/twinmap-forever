@@ -32,6 +32,15 @@ export default {
     hint: '随时按 M 切换到另一侧。',
   },
 
+  // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
+  ground3d: {
+    title: '3D ground (fork)',
+    hint: 'Takes effect when the window reloads.',
+    shadows: 'Hills cast shadows',
+    rock: 'Cliffs as rock instead of streaks',
+    stem: 'Pole over my arrow when zoomed out',
+    reload: 'Reload now',
+  },
   window: {
     onTop: '让Twinmap始终显示在其他窗口上方',
     // GS FONT_SIZE.

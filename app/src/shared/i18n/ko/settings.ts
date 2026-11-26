@@ -31,6 +31,15 @@ export default {
     hint: 'M 키로 언제든지 반대쪽으로 옮길 수 있습니다.',
   },
 
+  // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
+  ground3d: {
+    title: '3D ground (fork)',
+    hint: 'Takes effect when the window reloads.',
+    shadows: 'Hills cast shadows',
+    rock: 'Cliffs as rock instead of streaks',
+    stem: 'Pole over my arrow when zoomed out',
+    reload: 'Reload now',
+  },
   window: {
     // Twinmap is read 트윈맵: the particles after it follow the final ㅂ.
     onTop: 'Twinmap을 항상 다른 창 위에 표시',
