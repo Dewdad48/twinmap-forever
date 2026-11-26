@@ -947,7 +947,8 @@
     untrack(() => {
       if (!threeD || !terrain) return
       const folder = worldShown()
-      if (!folder) return back2d()
+      // A dungeon that is all rooms: its 2D map, where it was just opened.
+      if (!folder) return back2d(false)
       terrain.show(folder)
       const l = terrain.looking()
       lookAsTheMap(l.polar, l.azimuth)
@@ -1056,13 +1057,15 @@
       back2d()
     }
   }
-  // Straight to 2D, where the 3D view is looking.
-  function back2d(): void {
+  // Straight to 2D, where the 3D view is looking; or, follow false, where the 2D map already is (a dungeon just opened).
+  function back2d(follow = true): void {
     if (!terrain || !map) return
     tiedTo = ''
-    mapAsTheView()
-    // The 2D map turned as the view was looking.
-    map.setBearing((((terrain.looking().azimuth * 180) / Math.PI) % 360 + 360) % 360)
+    if (follow) {
+      mapAsTheView()
+      // The 2D map turned as the view was looking.
+      map.setBearing((((terrain.looking().azimuth * 180) / Math.PI) % 360 + 360) % 360)
+    }
     threeD = false
     for (const layer of shown) layer.addTo(map)
     terrain.stop()
@@ -1071,10 +1074,6 @@
     names3d?.clear()
     spinSoon()
   }
-  // Inside a dungeon there is no ground to show: back to 2D.
-  $effect(() => {
-    if (inside && untrack(() => threeD)) back2d()
-  })
 
   onMount(() => {
     const made = L.map(holder, { scrollWheelZoom: 'center', doubleClickZoom: 'center', touchZoom: 'center', zoomControl: false, crs: L.CRS.Simple, minZoom: 1, maxZoom: 9, zoomSnap: 0.5, zoomDelta: 0.5, wheelPxPerZoomLevel: 90, attributionControl: false, zoomAnimation: !still(), fadeAnimation: !still(), rotate: true, rotateControl: false, shiftKeyRotate: false, pitchDrag: false, touchRotate: false })
