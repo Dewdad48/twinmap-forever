@@ -41,10 +41,21 @@ export class Buildings {
     void this.standing.then((l) => {
       if (folder === this.folder) ((this.list = l), (this.changed = true))
     })
+    this.asked = performance.now()
+  }
+
+  // The buildings are made after the rest of the map, the first time: until they are, asked again now and then.
+  private asked = 0
+  private again(): void {
+    if (this.list.length || performance.now() - this.asked < 30_000 || !this.folder) return
+    const folder = this.folder
+    this.folder = ''
+    this.show(folder)
   }
 
   /** Before a frame: the buildings round the point looked at. True when the view must be drawn again. */
   update(at: THREE.Vector3, distance: number): boolean {
+    this.again()
     const on = distance < SHOWN_WITHIN
     this.group.visible = on
     if (on) {

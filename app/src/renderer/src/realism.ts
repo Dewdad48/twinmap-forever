@@ -36,7 +36,7 @@ export function setRealism(part: Realism, on: boolean): void {
 export function rocky(shader: THREE.WebGLProgramParametersWithUniforms): void {
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vRockAt;\nvarying vec3 vRockUp;')
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRockAt = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvRockUp = normalize(mat3(modelMatrix) * objectNormal);')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRockAt = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvec3 rockN = mat3(modelMatrix) * objectNormal;\nvRockUp = dot(rockN, rockN) > 1e-6 ? normalize(rockN) : vec3(0.0, 1.0, 0.0);')
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',

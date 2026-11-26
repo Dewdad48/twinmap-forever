@@ -19,7 +19,7 @@ import { ROOF_STEP } from './inside3d'
 import { inApp, TILES } from './web'
 import { realismOn, rocky } from './realism'
 import { Buildings } from './buildings3d'
-import { GroundPaint, painted, type Painted } from './ground3d'
+import { GroundPaint, painted, paintFor, type Painted } from './ground3d'
 
 /** Yards a side of the world's grid. */
 const WORLD = 64 * BLOCK_YARDS
@@ -994,6 +994,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     const group = new THREE.Group(),
       land = new THREE.Mesh(ground, material)
     land.castShadow = land.receiveShadow = !!this.sun
+    if (paint && texture) land.onBeforeRender = paintFor(paint)
     if (roofed) land.renderOrder = -1 // see-through, yet before everything else that is: the ground is under it all
     group.add(land)
     if (pit.length) {
@@ -1105,7 +1106,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
       const rock = this.rock
       if (opens || rock || paint)
         m.onBeforeCompile = (shader) => {
-          if (paint) painted(shader, paint)
+          if (paint) painted(shader)
           if (rock) rocky(shader)
           if (opens) this.opening(shader)
         }

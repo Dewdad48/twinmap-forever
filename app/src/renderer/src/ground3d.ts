@@ -98,11 +98,30 @@ export class GroundPaint {
   }
 }
 
+/**
+ * The uniforms every painted material shares. A program is compiled once for all of them (onBeforeCompile
+ * runs only for the first), so each block's textures are set here just before its ground is drawn (paintFor).
+ */
+export const paintUniforms = {
+  uPaint: { value: null as THREE.DataArrayTexture | null },
+  uLayers: { value: null as THREE.DataTexture | null },
+  uAlpha: { value: null as THREE.DataTexture | null },
+}
+
+/** For a mesh's onBeforeRender: its block's paint in the shared uniforms. */
+export function paintFor(p: Painted): () => void {
+  return () => {
+    paintUniforms.uPaint.value = p.textures
+    paintUniforms.uLayers.value = p.layers
+    paintUniforms.uAlpha.value = p.alpha
+  }
+}
+
 /** The ground's Lambert material painted: its picture (map) far, the textures near. */
-export function painted(shader: THREE.WebGLProgramParametersWithUniforms, p: Painted): void {
-  shader.uniforms.uPaint = { value: p.textures }
-  shader.uniforms.uLayers = { value: p.layers }
-  shader.uniforms.uAlpha = { value: p.alpha }
+export function painted(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  shader.uniforms.uPaint = paintUniforms.uPaint
+  shader.uniforms.uLayers = paintUniforms.uLayers
+  shader.uniforms.uAlpha = paintUniforms.uAlpha
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
