@@ -18,6 +18,7 @@ import { readTable } from '../shared/wdc5'
 import { LIQUID_TYPE_FILE, liquidOfName, WATER } from '../shared/water'
 import { WORLDS } from '../shared/world'
 import { gameLocale, installedBuild, openClientFiles, type ClientFiles } from './client-files'
+import { convertWorld3d, finishedWorld3d } from './world3d'
 import { convertInteriors, ENCOUNTERS_FILE, finishedInteriors, INTERIORS_FILE, MAP_FILE, mapEntries, ROOM_PICTURES_FILE, roomPictures } from './interiors'
 import { sentKeys } from './keys'
 import { convertHeights, heightsDone } from './heights'
@@ -249,6 +250,15 @@ try {
         return walkers.get(continent)!
       }
       if (caves) makeUnder(folder, inside, caves, (continent, u, v) => walk(continent)?.heights([MIDDLE_YARDS - v, MIDDLE_YARDS - u]) ?? [])
+    } catch {
+      // tried again at the next start
+    }
+    // Darrell's fork: the game's ground textures and buildings for the 3D view. Without them the 3D view is as before.
+    try {
+      if (!finishedWorld3d(folder)) {
+        const files = open()
+        convertWorld3d((id) => files.read(id, true), folder)
+      }
     } catch {
       // tried again at the next start
     }

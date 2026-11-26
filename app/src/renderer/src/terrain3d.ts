@@ -18,6 +18,8 @@ import { BLOCK_YARDS } from '../../shared/world'
 import { ROOF_STEP } from './inside3d'
 import { inApp, TILES } from './web'
 import { realismOn, rocky } from './realism'
+import { Buildings } from './buildings3d'
+import { GroundPaint, painted, type Painted } from './ground3d'
 
 /** Yards a side of the world's grid. */
 const WORLD = 64 * BLOCK_YARDS
@@ -168,6 +170,8 @@ export class Terrain {
   // Darrell's fork (realism.ts): the sun that casts the hills' shadows, when on.
   private sun: THREE.DirectionalLight | null = null
   private rock = realismOn('rock')
+  private paint: GroundPaint | null = null
+  private buildings: Buildings | null = null
   readonly s3tc: boolean
   // What is inside the ground is drawn before it, from a scene of its own; and first of all alone, on a
   // picture (seen) the ground asks pixel by pixel: is a room behind me, how much ground has it over it,
@@ -228,6 +232,12 @@ export class Terrain {
       sun.shadow.normalBias = 1.5
       this.scene.add(sun.target)
       this.sun = sun
+    }
+    // Darrell's fork: the game's ground textures near the camera, and its buildings (ground3d.ts, buildings3d.ts).
+    if (realismOn('ground')) this.paint = new GroundPaint(TILES, inflated, this.renderer.capabilities.getMaxAnisotropy())
+    if (realismOn('buildings')) {
+      this.buildings = new Buildings(TILES, inflated, !!this.sun)
+      this.scene.add(this.buildings.group)
     }
     this.materials = {
       ground: new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }),
@@ -329,6 +339,8 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     if (folder === this.folder) return
     this.drop()
     this.folder = folder
+    this.paint?.drop()
+    this.buildings?.show(folder)
     this.dirty = true
   }
 
@@ -654,6 +666,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
     this.camera.far = distance * 4 + 2000
     this.camera.updateProjectionMatrix()
     if (this.sun) this.shine(distance)
+    if (this.buildings?.update(this.controls.target, distance)) this.dirty = true
     this.compass.turn(this.controls.getPolarAngle() / 2, this.controls.getAzimuthalAngle())
     if (this.onBefore()) this.dirty = true
     // After the arrow is turned for this frame, so the view turns with it in the same frame, not one behind.
@@ -809,10 +822,11 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
       }
       const key = block ?? `${n.z} ${n.x} ${n.y}`
       const texture = await this.picture(key, n)
+      const paint = block && this.paint ? await this.paint.block(folder, block) : null
       if (folder !== this.folder) return
       n.picture = key
       n.grid = gridOf(levels, n.z, n.x, n.y)
-      n.group = this.meshes(n, n.grid, texture)
+      n.group = this.meshes(n, n.grid, texture, paint)
       // Once on the graphics card, the window keeps no copy of a node's meshes: what it needs of the ground is in its grid.
       n.group.traverse((o) => {
         const geo = (o as THREE.Mesh).geometry
@@ -898,7 +912,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
   }
 
   // A node's ground and liquids.
-  private meshes(n: Node, g: Grid, texture: THREE.Texture | null): THREE.Group {
+  private meshes(n: Node, g: Grid, texture: THREE.Texture | null, paint: Painted | null = null): THREE.Group {
     const size = WORLD / 2 ** n.z,
       step = size / (N - 1),
       x0 = n.x * size,
@@ -976,7 +990,7 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
       ring.forEach((v, r) => (roof[N * N + r] = roof[v]!))
       ground.setAttribute('roofed', new THREE.BufferAttribute(roof, 1))
     }
-    const material = texture ? this.groundWith(texture, !!roofed) : this.materials.ground
+    const material = texture ? this.groundWith(texture, !!roofed, paint) : this.materials.ground
     const group = new THREE.Group(),
       land = new THREE.Mesh(ground, material)
     land.castShadow = land.receiveShadow = !!this.sun
@@ -1081,18 +1095,21 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
   // The ground's material with a picture: one a picture, shared by the nodes that use it; and one more where the ground can open over a room.
   private withPicture = new WeakMap<THREE.Texture, THREE.MeshLambertMaterial>()
   private withRoof = new WeakMap<THREE.Texture, THREE.MeshLambertMaterial>()
-  private groundWith(texture: THREE.Texture, opens: boolean): THREE.MeshLambertMaterial {
-    const kept = opens ? this.withRoof : this.withPicture
+  private withPaint = new WeakMap<THREE.Texture, THREE.MeshLambertMaterial>()
+  private withPaintRoof = new WeakMap<THREE.Texture, THREE.MeshLambertMaterial>()
+  private groundWith(texture: THREE.Texture, opens: boolean, paint: Painted | null = null): THREE.MeshLambertMaterial {
+    const kept = paint ? (opens ? this.withPaintRoof : this.withPaint) : opens ? this.withRoof : this.withPicture
     let m = kept.get(texture)
     if (!m) {
       kept.set(texture, (m = new THREE.MeshLambertMaterial({ map: texture, side: THREE.DoubleSide, transparent: opens })))
       const rock = this.rock
-      if (opens || rock)
+      if (opens || rock || paint)
         m.onBeforeCompile = (shader) => {
+          if (paint) painted(shader, paint)
           if (rock) rocky(shader)
           if (opens) this.opening(shader)
         }
-      m.customProgramCacheKey = () => `${opens ? 'roof' : 'open'}${rock ? '-rock' : ''}`
+      m.customProgramCacheKey = () => `${opens ? 'roof' : 'open'}${rock ? '-rock' : ''}${paint ? '-paint' : ''}`
     }
     return m
   }
@@ -1127,6 +1144,8 @@ reflectedLight.directSpecular *= 2.0 * (1.0 - vColor.a);`)
       if (inUse.has(key) || p.used >= this.frame || !p.made) continue
       this.withPicture.get(p.made)?.dispose()
       this.withRoof.get(p.made)?.dispose()
+      this.withPaint.get(p.made)?.dispose()
+      this.withPaintRoof.get(p.made)?.dispose()
       p.made.dispose()
       this.pictures.delete(key)
     }

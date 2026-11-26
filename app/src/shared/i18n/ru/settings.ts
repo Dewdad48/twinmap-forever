@@ -36,6 +36,8 @@ export default {
   ground3d: {
     title: '3D ground (fork)',
     hint: 'Takes effect when the window reloads.',
+    ground: "Ground painted with the game's textures (close up)",
+    buildings: "The game's buildings, simplified",
     shadows: 'Hills cast shadows',
     rock: 'Cliffs as rock instead of streaks',
     stem: 'Pole over my arrow when zoomed out',

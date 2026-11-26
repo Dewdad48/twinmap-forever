@@ -71,6 +71,13 @@ export function servedFile(base: string, path: string): string | null {
   // The ground of the 3D view (heights.ts), a continent's only.
   const levels = /^\/([a-z]+)\/levels\/(\d)\/(\d{1,2})\/(\d{1,2})\.bin$/.exec(path)
   if (levels) return joinPath(base, levels[1]!, 'levels', levels[2]!, levels[3]!, `${levels[4]}.bin`)
+  // Darrell's fork (world3d.ts): a block's ground textures, a continent's buildings, a texture, a building's shape.
+  const ground = /^\/([a-z]+)\/ground\/(\d{1,2})\/(\d{1,2})\.bin$/.exec(path)
+  if (ground) return joinPath(base, ground[1]!, 'ground', ground[2]!, `${ground[3]}.bin`)
+  const standing = /^\/([a-z]+)\/buildings\.json$/.exec(path)
+  if (standing) return joinPath(base, standing[1]!, 'buildings.json')
+  const shape = /^\/(gtex|wmo)\/(\d{1,9})\.bin$/.exec(path)
+  if (shape) return joinPath(base, shape[1]!, `${shape[2]}.bin`)
   const item = /^\/(items|pictures)\/(\d{1,7})\.png$/.exec(path)
   if (item) return joinPath(base, item[1]!, `${item[2]}.png`)
   const m = /^\/(?:(maps|places|travel|interiors|caves|under|items|trainers|ah-names|game-names)\.json|rooms\/(\d{1,9})\.dxt|([a-z]+|i\d{1,5})\/(?:blocks\/(\d{1,2})\/(\d{1,2})\.dxt|(shade\/)?(\d)\/(\d{1,3})\/(\d{1,3})\.png))$/.exec(path)

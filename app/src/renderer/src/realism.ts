@@ -4,12 +4,13 @@
 // - Rock: a cliff has almost nothing in the top-down picture laid over it, so a line of pixels is
 //   pulled down its whole face in streaks. On steep ground the picture is blurred across the slope
 //   (its colour kept, its streaks gone) and given layered rock of its own, from where it is in the world.
+// - Ground: the game's own textures near the camera (ground3d.ts). Buildings: the game's, simplified (buildings3d.ts).
 // - The pole over the player's arrow when far (arrow3d.ts).
 import type * as THREE from 'three'
 
-export type Realism = 'shadows' | 'rock' | 'stem'
+export type Realism = 'shadows' | 'rock' | 'ground' | 'buildings' | 'stem'
 const KEY = 'twinmap.fork.3d'
-const DEFAULTS: Record<Realism, boolean> = { shadows: true, rock: true, stem: true }
+const DEFAULTS: Record<Realism, boolean> = { shadows: true, rock: true, ground: true, buildings: true, stem: true }
 
 function read(): Record<Realism, boolean> {
   try {
