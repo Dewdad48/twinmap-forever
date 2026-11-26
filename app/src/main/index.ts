@@ -271,6 +271,10 @@ function createWindow(): void {
     ...(process.platform === 'darwin' ? { trafficLightPosition: macButtonsAt(1) } : {}),
     webPreferences: { preload: join(__dirname, '../preload/index.js') },
   })
+  // Darrell's fork: Ctrl+Shift+I opens the window's developer tools, to see what the 3D view says when something goes wrong.
+  win.webContents.on('before-input-event', (_e, input) => {
+    if (input.type === 'keyDown' && input.control && input.shift && input.key.toLowerCase() === 'i') win.webContents.toggleDevTools()
+  })
   if (process.platform === 'darwin') macButtons(win)
   if ((saved as { maximized?: unknown } | null)?.maximized === true) win.maximize()
   // The page says when its opening screen is drawn; a page that never says so is shown all the same.
