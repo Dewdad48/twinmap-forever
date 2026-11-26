@@ -34,6 +34,7 @@ export default {
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
   ground3d: {
     title: 'Map (fork)',
+    areas: 'Quest areas: where the creatures and things to get are, faint',
     cities: "The game's city maps over the capitals (2D)",
     hint: 'Takes effect when the window reloads.',
     ground: "Ground painted with the game's textures (close up)",

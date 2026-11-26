@@ -8,9 +8,9 @@
 // - The pole over the player's arrow when far (arrow3d.ts).
 import type * as THREE from 'three'
 
-export type Realism = 'shadows' | 'rock' | 'ground' | 'buildings' | 'stem' | 'cities'
+export type Realism = 'shadows' | 'rock' | 'ground' | 'buildings' | 'stem' | 'cities' | 'areas'
 const KEY = 'twinmap.fork.3d'
-const DEFAULTS: Record<Realism, boolean> = { shadows: true, rock: true, ground: true, buildings: true, stem: true, cities: true }
+const DEFAULTS: Record<Realism, boolean> = { shadows: true, rock: true, ground: true, buildings: true, stem: true, cities: true, areas: true }
 
 function read(): Record<Realism, boolean> {
   try {

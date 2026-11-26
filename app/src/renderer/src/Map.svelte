@@ -4,6 +4,8 @@
   // Inside a dungeon or a raid it shows that instead: its rooms, its bosses, its entrance.
   import { TILES } from './web'
   import { realismOn } from './realism'
+  import { Areas3d } from './areas3d'
+  import { questAreas } from '../../shared/quest-areas'
   import { layout as sides, setMapRight } from './layout.svelte'
   import type { Terrain } from './terrain3d'
   import type { Compass } from './compass'
@@ -1009,6 +1011,7 @@
   }
   function onFrame(): void {
     if (counting) count()
+    areas3d?.tick(performance.now())
     pins3d!.draw()
     // The names: off with their layer; clear of the buttons and of the arrow, where it is on this view.
     const me = map!.hasLayer(arrow) ? pins3d!.spot(arrow.getLatLng()) : null
@@ -1056,6 +1059,11 @@
           return moved
         }
         pins3d ??= new Pins3d(map, terrain, pinsHost, terrainHost, arrow, () => turned, body, () => floorAt)
+        if (realismOn('areas') && !areas3d) {
+          areas3d = new Areas3d(terrain)
+          // The areas of the quests already on the map, now that the 3D view is there to take them.
+          areasMade++
+        }
         names3d ??= new Names3d(terrain, pinsHost)
         inside3d ??= new (await import('./inside3d')).Inside3d(terrain)
         inside3dSet()
@@ -1223,6 +1231,30 @@
   // The quests Questie shows, on the zones of the continent in view: where to take one, where to hand
   // one in, where what is still to find is. Each kind is a layer of its own.
   const questLayers = { available: L.layerGroup(), turnin: L.layerGroup(), objectives: L.layerGroup() }
+  // Darrell's fork: where the quests' creatures and things are, as faint areas round their places (shared/quest-areas.ts),
+  // as the game's own map shows them. In 2D under the pins; in 3D laid on the ground (areas3d.ts). The quest picked in the
+  // Now column alone, when one is; a switch in Settings.
+  const areasLayer = L.layerGroup()
+  let areas3d: Areas3d | undefined
+  let areasMade = $state(0)
+  const AREA_REACH = 90 // yards: a quest's places nearer than this to one another are one area
+  const AREA_PAD = 22 // yards round each place
+  $effect(() => {
+    void areasMade
+    areasLayer.clearLayers()
+    if (!map || inside || !realismOn('areas')) return void areas3d?.clear()
+    const zones = new Map(maps.filter((m) => m.level === 'zone' && m.rect && m.area && m.continent === continent).map((m) => [m.area, m]))
+    const places = quests.flatMap((p) => {
+      const zone = p.type === 'objective' ? zones.get(p.area) : undefined
+      return zone?.rect ? [{ ...unitsOfPlace(zone.rect, p.x, p.y), quests: p.quests }] : []
+    })
+    const areas = questAreas(places, AREA_REACH / YARDS_PER_UNIT, AREA_PAD / YARDS_PER_UNIT)
+    const lit = (quest: string): boolean => front === null || front === quest
+    if (!map.hasLayer(areasLayer)) areasLayer.addTo(map)
+    for (const a of areas)
+      L.polygon(a.ring.map((p) => at(p)), { interactive: false, color: '#9aa6ff', weight: 1, opacity: lit(a.quest) ? 0.5 : 0.15, fillColor: '#6d7dff', fillOpacity: lit(a.quest) ? 0.15 : 0.05 }).addTo(areasLayer)
+    areas3d?.set(areas.map((a) => ({ outline: a.ring.map((p) => ({ x: p.x * YARDS_PER_UNIT, z: p.y * YARDS_PER_UNIT })), lit: lit(a.quest) })))
+  })
   /**
    * Under a quest's line in a pin's tooltip, what it gives: its XP for the character (xpLevel: none at the level cap, as
    * QuestieDB has it while the level is not known) and its money, where the game's cache tells it.
