@@ -53,7 +53,7 @@
 
   // at: when the position was read off the game, in milliseconds.
   // insideReady: the rooms of the buildings are converted, and their list can be asked for.
-  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, zygor = null, route = noRoute(), onroute, onnpc, kills, death = null, skills, xpLevel, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; skills?: unknown; xpLevel?: number | null; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; zygor?: ZygorStep | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; onnpc?: (pin: FixedPin | null) => void; group?: Companion[] } = $props()
+  let { pos, group = [], at: readAt, insideReady, quests = [], fixed = [], side, live = false, inbox = null, removed = [], set = [], gameFollows = null, journey = null, zygor = null, target = null, route = noRoute(), onroute, onnpc, kills, death = null, skills, xpLevel, back = $bindable(null), looking = $bindable(null) }: { kills?: unknown; skills?: unknown; xpLevel?: number | null; death?: Death | null; back?: (DeathPlace & { name: string; door: boolean }) | null; looking?: { zone: string; where: string } | null; journey?: Journey | null; zygor?: ZygorStep | null; target?: { id: number; name: string } | null; pos: Position | undefined; at: number | undefined; insideReady: boolean; quests?: QuestPin[]; fixed?: FixedPin[]; side?: string; live?: boolean; inbox?: Inbox | null; removed?: string[]; set?: GameMark[]; gameFollows?: Pin | null; route?: Route; onroute?: (stop: Stop) => void; onnpc?: (pin: FixedPin | null) => void; group?: Companion[] } = $props()
 
   const TOP_ZOOM = 7 // the detail of the game itself: the picture of a block is four tiles
   const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='
@@ -1235,6 +1235,32 @@
   // as the game's own map shows them. In 2D under the pins; in 3D laid on the ground (areas3d.ts). The quest picked in the
   // Now column alone, when one is; a switch in Settings.
   const areasLayer = L.layerGroup()
+  // Darrell's fork: where QuestieDB has more of the creature targeted in the game, on the continent on show: orange
+  // rings with its name. The game tells where none of them stands, only what the target is. In 3D as the other rings are.
+  const targetLayer = L.layerGroup()
+  let targetSpots = $state<{ id: number; name: string; spots: Record<string, [number, number][]> } | null>(null)
+  $effect(() => {
+    const t = target
+    if (!t) return void (targetSpots = null)
+    if (targetSpots?.id === t.id) return
+    void window.twinmap.npcSpots(t.id).then((spots) => {
+      if (target?.id === t.id) targetSpots = { id: t.id, name: t.name, spots }
+    })
+  })
+  $effect(() => {
+    targetLayer.clearLayers()
+    if (!map || inside || !targetSpots) return
+    if (!map.hasLayer(targetLayer)) targetLayer.addTo(map)
+    const zones = new Map(maps.filter((m) => m.level === 'zone' && m.rect && m.area && m.continent === continent).map((m) => [m.area, m]))
+    for (const [area, spots] of Object.entries(targetSpots.spots)) {
+      const zone = zones.get(Number(area))
+      if (!zone?.rect) continue
+      for (const [x, y] of spots)
+        L.circleMarker(at(unitsOfPlace(zone.rect, x, y)), { radius: 6, color: '#ff8a2a', weight: 2, fillColor: '#ff8a2a', fillOpacity: 0.35 })
+          .bindTooltip(targetSpots.name, { direction: 'top', className: 'tip' })
+          .addTo(targetLayer)
+    }
+  })
   let areas3d: Areas3d | undefined
   let areasMade = $state(0)
   const AREA_REACH = 90 // yards: a quest's places nearer than this to one another are one area
@@ -1252,7 +1278,7 @@
     const lit = (quest: string): boolean => front === null || front === quest
     if (!map.hasLayer(areasLayer)) areasLayer.addTo(map)
     for (const a of areas)
-      L.polygon(a.ring.map((p) => at(p)), { interactive: false, color: '#9aa6ff', weight: 1, opacity: lit(a.quest) ? 0.5 : 0.15, fillColor: '#6d7dff', fillOpacity: lit(a.quest) ? 0.15 : 0.05 }).addTo(areasLayer)
+      L.polygon(a.ring.map((p) => at(p)), { interactive: false, className: 'quest-area', color: '#9aa6ff', weight: 1, opacity: lit(a.quest) ? 0.5 : 0.15, fillColor: '#6d7dff', fillOpacity: lit(a.quest) ? 0.15 : 0.05 }).addTo(areasLayer)
     areas3d?.set(areas.map((a) => ({ outline: a.ring.map((p) => ({ x: p.x * YARDS_PER_UNIT, z: p.y * YARDS_PER_UNIT })), lit: lit(a.quest) })))
   })
   /**

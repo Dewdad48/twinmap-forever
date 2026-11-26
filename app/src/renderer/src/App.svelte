@@ -167,6 +167,11 @@
   const journey = $derived(live ? journeyFrom(link?.state.sections.journey) : null)
   // The step Zygor shows in the game, and where its arrow points.
   const zygor = $derived(live ? zygorFrom(link?.state.sections.zygor) : null)
+  // Darrell's fork: the creature targeted in the game (addon Target.lua): where QuestieDB has more of it goes on the map.
+  const target = $derived.by(() => {
+    const t = live ? (link?.state.sections.target as { id?: unknown; name?: unknown } | undefined) : undefined
+    return t && Number.isInteger(t.id) && (t.id as number) > 0 ? { id: t.id as number, name: typeof t.name === 'string' ? t.name.slice(0, 60) : '' } : null
+  })
   // The companions of the group, where the game tells: gone with the strip, and with a group no longer told of.
   const group = $derived(live ? groupFrom(link?.state.sections.group, now - (link?.state.updatedAt.group ?? 0)) : [])
   const death = $derived(live ? deathFrom(link?.state.sections.dead, now - (link?.state.updatedAt.dead ?? 0)) : null)
@@ -385,7 +390,7 @@
 <div class="work" class:shut={!panelOpen} class:map-right={layout.mapRight} in:fade={screen} inert={onItems || onAh} style:--peek="{peek}px" style:--panel-w="{layout.width}px" bind:this={work}>
   <div class="mapbox" style:--readout="{readoutWidth}px">
     {#if mapReady}
-      <Map {pos} {group} {death} skills={char?.name ? sheets[char.name]?.pieces.skills : undefined} xpLevel={char ? (xp ? char.level : null) : undefined} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {zygor} {route} onroute={(stop) => setRoute(addStop(route, stop))} onnpc={(pin) => (npc = pin)} />
+      <Map {pos} {group} {death} skills={char?.name ? sheets[char.name]?.pieces.skills : undefined} xpLevel={char ? (xp ? char.level : null) : undefined} bind:back kills={live ? link?.state.sections.kills : undefined} bind:looking at={link?.state.updatedAt.pos} bind:this={mapView} {insideReady} {quests} {fixed} side={char?.side} {live} {inbox} removed={live ? goneFrom(link?.state.sections.marks) : []} set={live ? setFrom(link?.state.sections.marks) : []} gameFollows={live ? followFrom(link?.state.sections.follow) : null} {journey} {zygor} {target} {route} onroute={(stop) => setRoute(addStop(route, stop))} onnpc={(pin) => (npc = pin)} />
     {:else if tiles}
       <div class="making" class:failed={tiles.state === 'failed' || tiles.state === 'no-game'}>
         <p>{tilesLine(tiles)}</p>

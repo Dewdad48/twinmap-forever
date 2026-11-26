@@ -9,16 +9,19 @@ import { readFileSync } from 'node:fs'
 import type { GameMap } from '../shared/maps'
 import { ABOUT_NPC, type Ask } from './gamelog'
 import { setLang } from '../shared/i18n'
+import { npcSpots, type Places } from './questie'
 import { doerIndex, fixedPins, itemSources, metWhereQuestieSays, openQuestie, placed, questLog, questMoney, questPins, search, searchIndex, shownFromLog } from './questie'
 
 /** What the main process asks. */
-export type Asked = { shown: QuestieShown } | { log: GameQuest[] } | { search: string; id: number } | { sources: number; id: number } | { placed: Ask[]; id: number; maps: string | null }
+export type Asked = { shown: QuestieShown } | { log: GameQuest[] } | { search: string; id: number } | { sources: number; id: number } | { placed: Ask[]; id: number; maps: string | null } | { spots: number; id: number }
 /** The answer to a search, with the number it was asked with. */
 export interface Answer { id: number; found: Found[] }
 /** Who sells, drops or holds an item, with the number it was asked with. */
 export interface Sources { id: number; sources: ItemSources }
 /** For each thing asked, whether QuestieDB has it with a place; all of them without QuestieDB, which cannot tell what is missing. */
 export interface Placed { id: number; placed: boolean[] }
+/** Darrell's fork: every spot QuestieDB has for a creature, by zone (the game's area number), in hundredths of the zone. */
+export interface Spots { id: number; spots: Places }
 
 // A thread of its own speaks no language until told: the one of the app as it started the thread.
 setLang((workerData as { lang?: string }).lang)
@@ -36,7 +39,7 @@ const mapsOf = (file: string | null): GameMap[] | null => {
   }
   return maps.read
 }
-const tell = (status: QuestsStatus | Answer | Sources | Placed): void => parentPort?.postMessage(status)
+const tell = (status: QuestsStatus | Answer | Sources | Placed | Spots): void => parentPort?.postMessage(status)
 tell({ questie: db?.version ?? null, pins: [], fixed: db ? fixedPins(db) : [] })
 // The names to search, read once: twenty thousand items that nothing else decodes.
 const index = db ? searchIndex(db) : []
@@ -48,6 +51,7 @@ parentPort?.on('message', (asked: Asked) => {
     const of = (kind: string): string => (ABOUT_NPC.includes(kind) ? 'npc' : kind)
     tell({ id: asked.id, placed: asked.placed.map(([kind, id, ...rest]) => !db || (kind === 'talk' ? metWhereQuestieSays(db, id, rest as number[], maps) : placed(db, of(kind), id))) })
   }
+  else if ('spots' in asked) tell({ id: asked.id, spots: db ? npcSpots(db, asked.spots) : {} })
   else if ('sources' in asked) tell({ id: asked.id, sources: db ? itemSources(db, asked.sources) : { sold: [], drops: [], found: [] } })
   else if (db) {
     const shown = 'log' in asked ? shownFromLog(db, asked.log) : asked.shown

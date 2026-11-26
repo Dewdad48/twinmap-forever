@@ -27,7 +27,7 @@ import { startBosses } from './bosses'
 import { sendLog, startGameLog, type Ask } from './gamelog'
 import { describe, fault, startHealth } from './health'
 import { startLog } from './log'
-import type { Answer, Asked, Placed, Sources } from './questie-worker'
+import type { Answer, Asked, Placed, Sources, Spots } from './questie-worker'
 import startQuestieWorker from './questie-worker?nodeWorker'
 import { sendSamples, startSamples } from './samples'
 import { langFor, langNow, offerAll, offered, planned, setLang, t } from '../shared/i18n'
@@ -107,17 +107,19 @@ function startTiles(gameFolder: string | null): { status: () => TilesStatus; ite
 function startQuests(
   gameFolder: string | null,
   tell: (status: QuestsStatus) => void,
-): { show: (section: unknown, log?: unknown) => void; search: (typed: string) => Promise<Found[]>; sources: (item: number) => Promise<ItemSources>; placed: (asks: Ask[], maps: string | null) => Promise<boolean[]>; stop: () => void } {
+): { show: (section: unknown, log?: unknown) => void; search: (typed: string) => Promise<Found[]>; sources: (item: number) => Promise<ItemSources>; spots: (npc: number) => Promise<Record<string, [number, number][]>>; placed: (asks: Ask[], maps: string | null) => Promise<boolean[]>; stop: () => void } {
   const NONE: ItemSources = { sold: [], drops: [], found: [] }
   const ALL = (asks: Ask[]): Promise<boolean[]> => Promise.resolve(asks.map(() => true))
-  if (!gameFolder) return { show: () => {}, search: () => Promise.resolve([]), sources: () => Promise.resolve(NONE), placed: ALL, stop: () => {} }
+  if (!gameFolder) return { show: () => {}, search: () => Promise.resolve([]), sources: () => Promise.resolve(NONE), spots: () => Promise.resolve({}), placed: ALL, stop: () => {} }
   const worker = startQuestieWorker({ workerData: { gameFolder, lang: langNow() } })
   // A search waits for the answer that carries its number.
+  const askedSpots = new Map<number, (spots: Record<string, [number, number][]>) => void>()
   const asked = new Map<number, (found: Found[]) => void>(), askedSources = new Map<number, (sources: ItemSources) => void>(), askedPlaced = new Map<number, { answer: (placed: boolean[]) => void; fail: (why: Error) => void }>()
   let dead = false
   let searches = 0
   const post = (message: Asked): void => worker.postMessage(message)
-  worker.on('message', (told: QuestsStatus | Answer | Sources | Placed) => {
+  worker.on('message', (told: QuestsStatus | Answer | Sources | Placed | Spots) => {
+    if ('spots' in told) return void (askedSpots.get(told.id)?.(told.spots), askedSpots.delete(told.id))
     if ('placed' in told) return void (askedPlaced.get(told.id)?.answer(told.placed), askedPlaced.delete(told.id))
     if ('sources' in told) return void (askedSources.get(told.id)?.(told.sources), askedSources.delete(told.id))
     if (!('found' in told)) return tell(told)
@@ -129,6 +131,7 @@ function startQuests(
     tell({ questie: null, pins: [], fixed: [] }) // no quests on the map; the rest of the app goes on
     for (const answer of asked.values()) answer([])
     for (const answer of askedSources.values()) answer(NONE)
+    for (const answer of askedSpots.values()) answer({})
     // What QuestieDB has cannot be told: the sessions wait in the game's file for the app to open again.
     dead = true
     for (const { fail } of askedPlaced.values()) fail(new Error('QuestieDB could not be read'))
@@ -155,6 +158,11 @@ function startQuests(
       new Promise((answer) => {
         askedSources.set(++searches, answer)
         post({ sources: item, id: searches })
+      }),
+    spots: (npc) =>
+      new Promise((answer) => {
+        askedSpots.set(++searches, answer)
+        post({ spots: npc, id: searches })
       }),
     placed: (asks, maps) =>
       new Promise((answer, fail) => {
@@ -520,6 +528,8 @@ function createWindow(): void {
   // The search of the top row: what was typed, cut to a sane length.
   asks('search', (typed: unknown): Promise<Found[]> => (typeof typed === 'string' ? quests.search(typed.slice(0, 80)) : Promise.resolve([])))
   // Who sells an item, who drops it, where it is found: for its popup.
+  // Darrell's fork: where a creature is, for the one the player has targeted (Map.svelte).
+  asks('npc-spots', (npc: unknown) => (Number.isInteger(npc) && (npc as number) > 0 ? quests.spots(npc as number) : Promise.resolve({})))
   asks('item-sources', (item: unknown): Promise<ItemSources> => (Number.isInteger(item) && (item as number) > 0 ? quests.sources(item as number) : Promise.resolve({ sold: [], drops: [], found: [] })))
   // The way on foot between two points of a continent, for the line of the journey.
   asks('walk', (asked: unknown): Promise<WalkPath> => {

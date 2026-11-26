@@ -160,7 +160,8 @@ export class Pins3d {
         me = true
       } else if (layer instanceof L.Marker) this.copy(layer, seen)
       else if (layer instanceof L.CircleMarker) marks.push(layer)
-      else if (layer instanceof L.Polyline) lines.push(layer)
+      // Darrell's fork: the quests' areas are laid on the 3D ground themselves (areas3d.ts), not painted again here.
+      else if (layer instanceof L.Polyline && layer.options.className !== 'quest-area') lines.push(layer)
     })
     if (!me) this.body.hide()
     const step = this.terrain.looking().seen / POINTS_A_VIEW
