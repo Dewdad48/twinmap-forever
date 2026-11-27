@@ -16,6 +16,8 @@ export interface Leg {
   ends?: [Pin, Pin]
   /** How high each end is, in yards (Shortest Path 1.43 and later): null where it did not tell. */
   heights?: [number | null, number | null]
+  /** The way on foot Shortest Path walks this leg, from where the character stood: a map, and its bends in percent of it. */
+  way?: { m: number; at: [number, number][] }
 }
 
 export type Journey =
@@ -36,17 +38,34 @@ export function journeyFrom(section: unknown): Journey | null {
   if (loading === true) return { loading: true }
   if (!Array.isArray(legs)) return null
   const read = legs.slice(0, 20).flatMap((leg: unknown): Leg[] => {
-    const { mode, text, s, p, fz, tz } = (typeof leg === 'object' && leg ? leg : {}) as Record<string, unknown>
+    const { mode, text, s, p, fz, tz, w } = (typeof leg === 'object' && leg ? leg : {}) as Record<string, unknown>
     const words = plain(text, 80)
     if (!words) return []
     const told: Leg = { mode: plain(mode, 20), text: words, seconds: seconds(s) }
     const [a, b] = Array.isArray(p) && p.length === 6 ? [pinFrom({ m: p[0], x: p[1], y: p[2], name: '' }), pinFrom({ m: p[3], x: p[4], y: p[5], name: '' })] : []
     if (a && b) told.ends = [a, b]
     if (a && b && (height(fz) !== null || height(tz) !== null)) told.heights = [height(fz), height(tz)]
+    const way = wayFrom(w)
+    if (way) told.way = way
     return [told]
   })
   const title = plain(name, 80) || t('app.journey.name')
   return { name: title, owner: plain(owner, 40), legs: read, left: seconds(left), goal: pinFrom({ m, x, y, name: title }) }
+}
+
+const BENDS = 60
+/** The bends of a walk as the addon tells them: { m, p: [x1, y1, x2, y2, ...] } in percent; null when they don't read. */
+export function wayFrom(w: unknown): { m: number; at: [number, number][] } | null {
+  if (typeof w !== 'object' || !w || Array.isArray(w)) return null
+  const { m, p } = w as Record<string, unknown>
+  if (typeof m !== 'number' || !Number.isInteger(m) || m <= 0 || !Array.isArray(p) || p.length < 4 || p.length % 2) return null
+  const at: [number, number][] = []
+  for (let i = 0; i + 1 < p.length && at.length < BENDS; i += 2) {
+    const x = p[i], y = p[i + 1]
+    if (typeof x !== 'number' || typeof y !== 'number' || !(x >= 0 && x <= 100 && y >= 0 && y <= 100)) return null
+    at.push([x, y])
+  }
+  return { m, at }
 }
 
 /** Who started it, for the player to read; nothing when it is Twinmap's own or the player's. "AdventureGuideForever" reads "Adventure Guide". */
@@ -66,6 +85,8 @@ export function span(s: number): string {
 export interface WayLeg {
   mode: string
   points: { continent: Continent; at: Point; z?: number }[]
+  /** The way on foot Shortest Path walks, in map units, when it told one on a map of this leg's continent. */
+  way?: Point[]
 }
 
 /** The legs still ahead on the map, when every one of them has its ends on a map Twinmap draws; else null. */
@@ -78,7 +99,9 @@ export function legsOn(journey: Journey | null, maps: GameMap[]): WayLeg[] | nul
       return on?.rect && on.continent !== null ? [{ continent: on.continent, at: unitsOfPlace(on.rect, end.x, end.y), ...(z !== null && { z }) }] : []
     })
     if (points.length !== 2) return null
-    legs.push({ mode: leg.mode, points })
+    const wayMap = leg.way && maps.find((m) => m.id === leg.way!.m)
+    const way = wayMap?.rect && wayMap.continent === points[0]!.continent ? leg.way!.at.map(([x, y]) => unitsOfPlace(wayMap.rect!, x, y)) : undefined
+    legs.push({ mode: leg.mode, points, ...(way && { way }) })
   }
   return legs
 }

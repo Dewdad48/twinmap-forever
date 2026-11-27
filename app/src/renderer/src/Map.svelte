@@ -45,7 +45,6 @@
   import { legsOn, type Journey, type WayLeg } from '../../shared/journey'
   import type { ZygorStep } from '../../shared/zygor'
   import { ahead as restOf } from '../../shared/walk'
-  import { goalKey, walkNews } from '../../shared/walk-news'
   import { deathPlaces, type Death, type Place as DeathPlace } from '../../shared/death'
   import { feet } from './feet.svelte'
   import { kept as keptByApp } from './kept.svelte'
@@ -1790,6 +1789,12 @@
     // Where the walk under way ends: where the first leg does when the legs are known and it is a walk, else at the goal of a journey all on foot.
     const first = ahead?.[0], end = first ? (first.mode === 'walk' ? first.points.at(-1)! : null) : goal?.walked ? goal : null
     if (!goal || !end || !me || me.continent !== end.continent) return void (walked = null)
+    // Shortest Path told the way it walks this leg: drawn as it is, the line the game leads along.
+    if (first?.mode === 'walk' && first.way && first.way.length >= 2) {
+      const key = first.way.map((p) => [Math.round(p.x), Math.round(p.y)].join(',')).join(';')
+      if (walked?.key !== key) walked = { key, continent: end.continent, points: first.way, own: 0 }
+      return
+    }
     const key = `${end.continent} ${end.at.x} ${end.at.y}`, from = me.units, to = end.at
     if (walked?.key === key && restOf(walked.points, from).off <= OFF_THE_WAY) return
     if (asking || Date.now() - askedAt < ASK_EVERY) return
@@ -1817,22 +1822,10 @@
       })
     }
   })
-  // The walk under way, when it keeps to the player's own trails: given to Shortest Path to guide in
-  // the game (walk-news.ts), as points on the way. Not while Shortest Path guides the one given: its
-  // first leg then ends at the first of them, and the walk found here is to that. Sent again only
-  // when what would be sent changes; once nothing, when the walk leaves the trails or the journey ends.
-  const WALK_OWNER = 'Twinmap Walk'
-  let walkSent = ''
+  // Twinmap no longer gives Shortest Path stops of its own on the way ("Your path"): they led back
+  // where the character had been. Told once, so an addon still holding some lets them go.
   $effect(() => {
-    const w = walked, j = journey, here = me
-    if (j && !j.loading && j.owner === WALK_OWNER) return
-    const goal = j && !j.loading ? j.goal : null
-    const on = w && goal && here && here.continent === w.continent ? maps.find((m) => m.level === 'continent' && m.continent === w.continent) : undefined
-    const news = on && goal ? walkNews(w!.points, w!.own, here!.units, on, goalKey(goal), Date.now()) : false
-    const key = news ? `${news.goal} ${news.v.map((p) => `${p.n} ${p.w}`).join(' ')}` : ''
-    if (key === walkSent) return
-    walkSent = key
-    void window.twinmap.sendWalk(news)
+    void window.twinmap.sendWalk(false)
   })
   // The colours Shortest Path gives the legs in the game.
   // The way on foot: grey, as Shortest Path draws it in the game, so it is not taken for the gold of herbs and ore.

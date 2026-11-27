@@ -13,6 +13,68 @@ local TEXT = 60 -- letters of a leg's text, and of the goal's name
 local function Num(v) if type(v) == "number" and not (issecretvalue and issecretvalue(v)) then return v end end
 local function Str(v) if type(v) == "string" and not (issecretvalue and issecretvalue(v)) then return v:sub(1, TEXT) end end
 
+---------------------------------------------------------------------------
+-- The way on foot to where the walk under way ends, as Shortest Path itself walks it (API.WalkPath,
+-- Shortest Path 1.47 and later): its bends are told with the first leg, so the app draws the line the
+-- game leads along instead of finding one of its own. Asked again when that end changes, when the
+-- character strays from the line, and every so often as the character walks.
+---------------------------------------------------------------------------
+local BENDS = 40     -- bends told at most
+local STRAY = 25     -- yards from the line's start before the way is asked again
+local AGAIN = 12     -- seconds before the way is asked again while walking
+
+local path = { key = nil, w = nil, asked = 0, from = nil, busy = false }
+
+local function Here()
+  local m = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+  local pos = m and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(m, "player")
+  if not pos then return end
+  local x, y = pos.x, pos.y
+  if Num(x) and Num(y) and (x > 0 or y > 0) then return { map = m, x = x, y = y } end
+end
+
+local function AskWay(api, to)
+  if type(api.WalkPath) ~= "function" or InCombatLockdown() then return end
+  local key = ("%s %.4f %.4f"):format(to.map, to.x, to.y)
+  local north, west = UnitPosition("player")
+  north, west = Num(north), Num(west)
+  local now = GetTime()
+  local moved = path.from and north and west and math.sqrt((north - path.from[1]) ^ 2 + (west - path.from[2]) ^ 2) or 0
+  if path.key == key and path.w and (moved < STRAY or now - path.asked < AGAIN) then return end
+  if path.busy and now - path.asked < AGAIN then return end
+  local here = Here()
+  if not here then return end
+  if path.key ~= key then path.w = nil end
+  path.key, path.asked, path.busy = key, now, true
+  local ok = pcall(api.WalkPath, "Twinmap", here, { map = to.map, x = to.x, y = to.y }, function(found)
+    path.busy = false
+    if path.key ~= key then return end
+    if type(found) ~= "table" or type(found.waypoints) ~= "table" then return end
+    local w, m = {}, nil
+    for _, p in ipairs(found.waypoints) do
+      if type(p) == "table" and Num(p.map) and Num(p.x) and Num(p.y) then
+        m = m or p.map
+        if p.map == m then
+          w[#w + 1] = math.floor(p.x * 10000 + 0.5) / 100
+          w[#w + 1] = math.floor(p.y * 10000 + 0.5) / 100
+        end
+      end
+    end
+    -- Too many bends: every other one in the middle, the ends kept.
+    while #w / 2 > BENDS do
+      local thin = { w[1], w[2] }
+      for i = 3, #w - 2, 4 do thin[#thin + 1] = w[i]; thin[#thin + 1] = w[i + 1] end
+      thin[#thin + 1] = w[#w - 1]; thin[#thin + 1] = w[#w]
+      w = thin
+    end
+    if m and #w >= 4 then
+      path.w = { m = m, p = w }
+      path.from = north and west and { north, west } or nil
+    end
+  end)
+  if not ok then path.busy = false end
+end
+
 -- What the app is told: the journey, { loading = true } while its plan is searched, or that there
 -- is none. Told from the first journey on, also when there is none: the app must hear it end.
 local function Build()
@@ -37,6 +99,12 @@ local function Build()
       -- How high each end is, in whole yards (Shortest Path 1.43 and later, where its planner holds it): the floor the leg starts and ends on.
       legs[i].fz, legs[i].tz = Num(from.z) and math.floor(from.z + 0.5), Num(to.z) and math.floor(to.z + 0.5)
     end
+  end
+  -- The walk under way: the first leg, when it is on foot.
+  local first = type(journey.legs) == "table" and journey.legs[1]
+  if legs[1] and legs[1].p and type(first) == "table" and first.mode == "walk" and type(first.to) == "table" then
+    AskWay(api, first.to)
+    if path.w and path.key == ("%s %.4f %.4f"):format(first.to.map, first.to.x, first.to.y) then legs[1].w = path.w end
   end
   local left = Num(journey.secondsLeft) or 0
   return {

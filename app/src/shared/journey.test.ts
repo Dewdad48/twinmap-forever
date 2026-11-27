@@ -48,3 +48,13 @@ test('the height of the ends of a leg is read when Shortest Path tells it', () =
   expect(read({}), 'an older Shortest Path').toBeUndefined()
   expect(read({ fz: 'high', tz: 1e9 }), 'not heights').toBeUndefined()
 })
+
+test('the bends Shortest Path walks a leg by are read, and nonsense is not', async () => {
+  const { wayFrom } = await import('./journey')
+  expect(wayFrom({ m: 1413, p: [50, 40, 51.23, 44.56, 52, 47] })).toEqual({ m: 1413, at: [[50, 40], [51.23, 44.56], [52, 47]] })
+  expect(wayFrom({ m: 1413, p: [50, 40, 51] })).toBeNull()
+  expect(wayFrom({ m: 1413, p: [50, 40, 151, 2] })).toBeNull()
+  expect(wayFrom({ m: 'x', p: [1, 2, 3, 4] })).toBeNull()
+  const read = journeyFrom({ owner: 'Zygor', name: 'Kreenig', m: 1413, x: 52, y: 47, left: 40, legs: [{ mode: 'walk', text: 'Walk to Kreenig', s: 40, p: [1413, 50, 40, 1413, 52, 47], w: { m: 1413, p: [50, 40, 52, 47] } }] })
+  expect(read && !read.loading && read.legs[0]!.way).toEqual({ m: 1413, at: [[50, 40], [52, 47]] })
+})

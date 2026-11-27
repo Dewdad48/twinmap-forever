@@ -38,7 +38,8 @@ function finder(continent: number): Walker | null {
     } catch {
       // no file: no ways on foot, and the rest of the app goes on
     }
-    finders.set(continent, nav && walker(nav, trailsOf(continent)))
+    // The way is found on the game's ground alone: the trails walked are kept, but no longer steer it (they led back where the character had been).
+    finders.set(continent, nav && walker(nav))
   }
   return finders.get(continent) ?? null
 }

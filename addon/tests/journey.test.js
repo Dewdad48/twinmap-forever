@@ -194,3 +194,18 @@ test('each leg goes out with where it starts and ends, when Shortest Path tells 
   // The height of an end, in whole yards, where Shortest Path tells it (1.43 and later).
   assert.deepEqual(told(addon).at(-1).legs.map((leg) => [leg.fz, leg.tz]), [[3, undefined], [undefined, undefined], [undefined, undefined], [undefined, undefined]]);
 });
+
+test('the walk under way goes out with the bends Shortest Path walks it by', () => {
+  const addon = enterWorld(SHORTEST_PATH + ` GAME.map, GAME.x, GAME.y = 1413, 0.5, 0.4
+    ShortestPathForever.API.WalkPath = function(owner, from, to, done)
+      ASKED = (ASKED or 0) + 1
+      done({ waypoints = { { map = 1413, x = from.x, y = from.y }, { map = 1413, x = 0.5123, y = 0.4456 }, { map = 1413, x = to.x, y = to.y } }, yards = 120 })
+      return function() end
+    end`);
+  addon.run(4);
+  addon.lua(`JOURNEY = { owner = "Zygor", goal = { map = 1413, x = 0.52, y = 0.47, title = "Kreenig" },
+    legs = { { mode = "walk", text = "Walk to Kreenig", seconds = 40, from = { map = 1413, x = 0.5, y = 0.4 }, to = { map = 1413, x = 0.52, y = 0.47 } } } }`);
+  addon.run(6);
+  assert.deepEqual(told(addon).at(-1).legs[0].w, { m: 1413, p: [50, 40, 51.23, 44.56, 52, 47] });
+  assert.equal(addon.lua('return ASKED'), 1, 'asked once while standing still');
+});
