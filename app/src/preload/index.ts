@@ -14,7 +14,7 @@ import type { Updating } from '../main/update'
 import type { QuestsStatus } from '../shared/quests'
 import type { RouteNews } from '../shared/route'
 import type { Found } from '../shared/search'
-import type { Pin } from '../shared/send'
+import type { Pin, WalkNews } from '../shared/send'
 import type { Optional, SetupStatus } from '../shared/setup'
 import type { TilesStatus } from '../shared/tiles-status'
 import type { Far, FarAsk, Floors, TrackAsk, WalkAsk, WalkPath } from '../shared/walk'
@@ -126,4 +126,5 @@ contextBridge.exposeInMainWorld('twinmap', {
   sendRoute: (route: RouteNews | false): Promise<{ seq: number } | { error: string }> => ipcRenderer.invoke('send-route', route),
   // Moves the game on to a stop of the route it has.
   sendStep: (step: { t: number; at: number }): Promise<{ seq: number } | { error: string }> => ipcRenderer.invoke('send-step', step),
+  sendWalk: (walk: WalkNews | false): Promise<{ seq: number } | { error: string }> => ipcRenderer.invoke('send-walk', walk),
 })

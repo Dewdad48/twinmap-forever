@@ -17,8 +17,12 @@ import { join } from 'node:path'
 import { inflateSync } from 'node:zlib'
 import { navFrom, type NavData, type NavField } from '../shared/nav-data'
 import { BLOCK_YARDS } from '../shared/world'
+import type { TrailView } from './trails'
 
 const OFFROAD = 1.5 // a yard off the road counts as this many on it
+const TRAIL = 0.6 // a yard the player has walked before counts as this many on the road: the player's own ways come first
+const TRAIL_LEVEL = 5 // yards between the height of a place and of a trail for the trail to be on it
+const AIM = 0.8 // the yards still to go as the crow flies, as the search weighs them: under 1, as a trail costs less than a yard
 const CLIMB = Math.tan((50 * Math.PI) / 180) // the steepest rise a character walks up, a yard for each yard on
 const SNAP = 6 // cells around a point searched for one that can be walked
 const LIMIT = 400_000 // cells a search looks at before it gives up
@@ -82,6 +86,8 @@ export interface Walk {
   yards: number
   /** How high the way is at each of its points, in yards: the floor it walks where several lie over one another. */
   heights: number[]
+  /** How much of the way, 0 to 1 by its cells, keeps to trails the player walked (trails.ts). */
+  own: number
 }
 
 // What a cluster unpacks to. A node is a place to stand: the base surface of a cell (its number is
@@ -135,8 +141,15 @@ export type Walker = ((from: Yards, to: Yards, fromZ?: number, toZ?: number) => 
 export type Tracker = (at: Yards, indoors?: boolean) => { z: number; over: number; under: number } | null
 
 /** Clusters are unpacked as searches cross them, and kept. */
-export function walker(nav: NavData): Walker {
+export function walker(nav: NavData, trails?: { view: (cellOf: (p: Yards) => [number, number], width: number) => TrailView }): Walker {
   const C = nav.cells, N = C * C, GX = nav.nx * C, GY = nav.ny * C, cell = BLOCK_YARDS / C
+  const trail = trails?.view(([x, y]) => [Math.floor((x - nav.cx0 * BLOCK_YARDS) / cell), Math.floor((y - nav.cy0 * BLOCK_YARDS) / cell)], GY)
+  // Where on a cell the player walked at the height of a place, on average; none where not walked there.
+  const trodden = (gx: number, gy: number, z: number): Yards | null => {
+    let n = 0, x = 0, y = 0
+    for (const t of trail?.at(gx, gy) ?? []) if (Math.abs(t.z - z) <= TRAIL_LEVEL) (n += t.n), (x += t.x * t.n), (y += t.y * t.n)
+    return n ? [x / n, y / n] : null
+  }
   const clusters = new Map<number, Cluster | null>()
   // Steps both ways take from a floor into the next cluster are written on that floor only: the way back is kept here, by the node it leaves from.
   const across = new Map<number, number[]>()
@@ -375,6 +388,18 @@ export function walker(nav: NavData): Walker {
         visit(tk * KEY + local(tx, ty), tx, ty, cluster(tk)!, local(tx, ty), 0)
       }
     }
+    // A step the player took, whatever the grid says of it: to the place on the next cell nearest the height walked there.
+    if (trail) {
+      for (const [dx, dy] of DIRS) {
+        const tx = gx + dx, ty = gy + dy
+        if (!inside(tx, ty) || !trail.linked(gx, gy, tx, ty) || !trodden(gx, gy, c.z[node]!)) continue
+        const there = trail.at(tx, ty) ?? [], tk = clusterAt(tx, ty), into = cluster(tk)
+        for (const t of there) {
+          const target = into ? surface(into, local(tx, ty), -1, t.z) : -1
+          if (target >= 0 && Math.abs(into!.z[target]! - t.z) <= TRAIL_LEVEL) visit(tk * KEY + target, tx, ty, into!, target, 0)
+        }
+      }
+    }
     for (let i = c.linkAt ? c.linkAt[node]! * 4 : 0, end = c.linkAt ? c.linkAt[node + 1]! * 4 : 0; i < end; i += 4) {
       const dx = c.links[i]!, dy = c.links[i + 1]!, tx = gx + dx, ty = gy + dy
       if (!inside(tx, ty)) continue
@@ -474,15 +499,18 @@ export function walker(nav: NavData): Walker {
       if (walked > reach) break
       for (const i of ends.get(here) ?? []) if (goals[i]! < 0) (goals[i] = here), left--
       if (!left) break
-      const [gx, gy, c] = placeOf(here)
+      const [gx, gy, c, hereNode] = placeOf(here), zHere = c.z[hereNode]!
       const relax = (next: number, tx: number, ty: number, into: Cluster, target: number, drop: number): void => {
         if (done.has(next)) return
         // Yards walked: half as much again off the road, the map's own price in water, a drop at its own.
-        const step = drop > 0 ? drop : cell * (tx !== gx && ty !== gy ? Math.SQRT2 : 1) * (c.road[local(gx, gy)] === 1 && into.road[local(tx, ty)] === 1 ? 1 : OFFROAD) * (into.val[target] === 2 ? nav.swim : 1)
+        // On the player's own trail at both ends: cheaper than any road.
+        const own = trail && trodden(gx, gy, zHere) && trodden(tx, ty, into.z[target]!)
+        const kind = own ? TRAIL : c.road[local(gx, gy)] === 1 && into.road[local(tx, ty)] === 1 ? 1 : OFFROAD
+        const step = drop > 0 ? drop : cell * (tx !== gx && ty !== gy ? Math.SQRT2 : 1) * kind * (into.val[target] === 2 && !own ? nav.swim : 1)
         if (walked + step >= (cost.get(next) ?? Infinity)) return
         cost.set(next, walked + step)
         came.set(next, here)
-        push([walked + step + (aim ? cell * Math.hypot(tx - aim[0], ty - aim[1]) : 0), next])
+        push([walked + step + (aim ? AIM * cell * Math.hypot(tx - aim[0], ty - aim[1]) : 0), next])
       }
       steps(here, relax)
     }
@@ -490,17 +518,19 @@ export function walker(nav: NavData): Walker {
   }
   // The way a search found to one of its goals: the middles of its cells, and its yards. Never
   // fewer than the crow flies: the two ends are somewhere in their cells, not at the middles.
-  function wayBack(came: Map<number, number>, goal: number, from: Yards, to: Yards): { cells: Yards[]; yards: number; high: Map<Yards, number> } {
+  function wayBack(came: Map<number, number>, goal: number, from: Yards, to: Yards): { cells: Yards[]; yards: number; high: Map<Yards, number>; own: number } {
     const cells: Yards[] = [], high = new Map<Yards, number>()
+    let own = 0
     for (let at: number | undefined = goal; at !== undefined; at = came.get(at)) {
-      const [gx, gy] = placeOf(at), cell = middle(gx, gy)
+      const [gx, gy] = placeOf(at), walked = trail ? trodden(gx, gy, zOf(at)) : null, cell = walked || middle(gx, gy)
+      if (walked) own++
       cells.push(cell)
       high.set(cell, zOf(at))
     }
     cells.reverse()
     let yards = 0
     for (let i = 1; i < cells.length; i++) yards += Math.hypot(cells[i]![0] - cells[i - 1]![0], cells[i]![1] - cells[i - 1]![1])
-    return { cells, yards: Math.round(Math.max(yards, Math.hypot(to[0] - from[0], to[1] - from[1]))), high }
+    return { cells, yards: Math.round(Math.max(yards, Math.hypot(to[0] - from[0], to[1] - from[1]))), high, own: cells.length ? own / cells.length : 0 }
   }
 
   const zOf = (key: number): number => {
@@ -588,9 +618,9 @@ export function walker(nav: NavData): Walker {
   const find = (from: Yards, to: Yards, fromZ?: number, toZ?: number): Walk | null => {
     const { came, goals } = search(from, [to], Infinity, fromZ, toZ)
     if (goals[0]! < 0) return null
-    const { cells, yards, high } = wayBack(came, goals[0]!, from, to), turns = thin(cells, cell / 2)
+    const { cells, yards, high, own } = wayBack(came, goals[0]!, from, to), turns = thin(cells, cell / 2)
     // The line starts and ends at the very points asked for, not at the middles of their cells.
-    return { points: [from, ...turns, to], yards, heights: [high.get(cells[0]!)!, ...turns.map((p) => high.get(p)!), high.get(cells.at(-1)!)!] }
+    return { points: [from, ...turns, to], yards, heights: [high.get(cells[0]!)!, ...turns.map((p) => high.get(p)!), high.get(cells.at(-1)!)!], own }
   }
   const far = (from: Yards, tos: Yards[], reach: number): (number | null)[] => {
     const { came, goals } = search(from, tos, reach)

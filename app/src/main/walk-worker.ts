@@ -9,9 +9,23 @@ import { UNITS_PER_BLOCK, unitsOfWorld } from '../shared/geo'
 import { navFrom } from '../shared/nav-data'
 import type { Far, FarAsk, Floors, TrackAsk, WalkAsk, WalkPath } from '../shared/walk'
 import { BLOCK_YARDS, BLOCKS } from '../shared/world'
+import { Trails } from './trails'
 import { readAddonNav, shortestPathFolder, walker, type Tracker, type Walker, type Yards } from './walk'
 
-const { gameFolder, shipped } = workerData as { gameFolder: string | null; shipped: string }
+const { gameFolder, shipped, trailFolder } = workerData as { gameFolder: string | null; shipped: string; trailFolder?: string }
+// The ways the player walked, by continent (trails.ts): kept in the app's folder, written now and then.
+const trails = new Map<number, Trails>()
+const trailsOf = (continent: number): Trails => trails.get(continent) ?? trails.set(continent, new Trails(trailFolder && join(trailFolder, `trails${continent}.json`))).get(continent)!
+const SAVE_EVERY = 30_000
+setInterval(() => {
+  for (const t of trails.values()) {
+    try {
+      t.save()
+    } catch {
+      // a disk that will not take it now: next time
+    }
+  }
+}, SAVE_EVERY).unref()
 const finders = new Map<number, Walker | null>()
 // One character, followed on each continent: the floor it stands on is known from where it stood before.
 const trackers = new Map<number, Tracker>()
@@ -24,7 +38,7 @@ function finder(continent: number): Walker | null {
     } catch {
       // no file: no ways on foot, and the rest of the app goes on
     }
-    finders.set(continent, nav && walker(nav))
+    finders.set(continent, nav && walker(nav, trailsOf(continent)))
   }
   return finders.get(continent) ?? null
 }
@@ -42,6 +56,11 @@ parentPort?.on('message', ({ id, ask }: { id: number; ask: WalkAsk | FarAsk | Tr
       if (find && !trackers.has(ask.continent)) trackers.set(ask.continent, find.track())
       const told = trackers.get(ask.continent)?.(yardsOf(ask.at), ask.indoors)
       floors = told ? { over: told.over, under: told.under, z: told.z } : null
+      // On foot: the way from the point before is a way walked. Off it (a flight, a taxi): none.
+      const here = yardsOf(ask.at), trail = trailsOf(ask.continent)
+      for (const [c, t] of trails) if (c !== ask.continent) t.broken()
+      if (ask.foot === false) trail.broken()
+      else if (ask.foot === true) trail.walked(here[0], here[1], told?.z, Date.now())
       // For trials in the game: TWINMAP_TRACK_LOG names a file that gets a line for each point followed.
       if (process.env.TWINMAP_TRACK_LOG) appendFileSync(process.env.TWINMAP_TRACK_LOG, JSON.stringify({ t: Date.now(), ...ask, told: told ?? null }) + '\n')
     } catch {
@@ -56,7 +75,7 @@ parentPort?.on('message', ({ id, ask }: { id: number; ask: WalkAsk | FarAsk | Tr
     if (find && many) path = find.far(yardsOf(ask.from), ask.to.map(yardsOf), ask.reach)
     else if (find && !many) {
       const walk = find(yardsOf(ask.from), yardsOf(ask.to), ask.fromZ, ask.toZ)
-      if (walk) path = { points: walk.points.map(([x, y], i) => ({ ...unitsOfWorld(x, y), z: Math.round(walk.heights[i]!) })), yards: walk.yards }
+      if (walk) path = { points: walk.points.map(([x, y], i) => ({ ...unitsOfWorld(x, y), z: Math.round(walk.heights[i]!) })), yards: walk.yards, own: walk.own }
     }
   } catch {
     // a grid that does not read as it should: no way, rather than a thread that dies

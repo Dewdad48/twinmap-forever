@@ -13,7 +13,7 @@ import { logFrom, shownFrom, type QuestsStatus } from '../shared/quests'
 import type { Found } from '../shared/search'
 import { tipsFrom, type ItemSources, type Tips } from '../shared/tips'
 import { groupFrom } from '../shared/group'
-import { arrived, inboxFrom, marksNews, pinFrom, routeNewsFrom, stepFrom, takenFrom } from '../shared/send'
+import { arrived, inboxFrom, marksNews, pinFrom, routeNewsFrom, stepFrom, takenFrom, walkNewsFrom } from '../shared/send'
 import { feedbackLink, sendFeedback } from '../shared/feedback'
 import { pageOf, setupComplete, setupPages, type SetupStatus } from '../shared/setup'
 import { tilesLine, type TilesStatus } from '../shared/tiles-status'
@@ -176,7 +176,7 @@ function startQuests(
 
 // The ways on foot: found on a thread of its own, each asking answered under its number.
 function startWalks(gameFolder: string | null): { find: (ask: WalkAsk) => Promise<WalkPath>; far: (ask: FarAsk) => Promise<Far>; track: (ask: TrackAsk) => Promise<Floors>; stop: () => void } {
-  const worker = startWalkWorker({ workerData: { gameFolder, shipped: navFolder() } })
+  const worker = startWalkWorker({ workerData: { gameFolder, shipped: navFolder(), trailFolder: app.getPath('userData') } })
   const asked = new Map<number, (path: WalkPath | Far | Floors) => void>()
   let asks = 0
   worker.on('message', (told: { id: number; path: WalkPath | Far | Floors }) => {
@@ -859,6 +859,11 @@ function createWindow(): void {
   asks('send-route', (asked: unknown): Sent => {
     const route = routeNewsFrom(asked)
     return sendParts(route === null ? null : { route })
+  })
+  // The walk on the player's own trails, for Shortest Path to guide in the game; false: its own again.
+  asks('send-walk', (asked: unknown): Sent => {
+    const walk = walkNewsFrom(asked)
+    return sendParts(walk === null ? null : { walk })
   })
   asks('send-step', (asked: unknown): Sent => {
     const step = stepFrom(asked)

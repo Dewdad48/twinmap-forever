@@ -44,6 +44,7 @@
   import { legsOn, type Journey, type WayLeg } from '../../shared/journey'
   import type { ZygorStep } from '../../shared/zygor'
   import { ahead as restOf } from '../../shared/walk'
+  import { goalKey, walkNews } from '../../shared/walk-news'
   import { deathPlaces, type Death, type Place as DeathPlace } from '../../shared/death'
   import { feet } from './feet.svelte'
   import { kept as keptByApp } from './kept.svelte'
@@ -322,7 +323,7 @@
     const here = me
     const asked = ++tracked
     if (!here) return void (arrow.setOpacity(1), (floorAt = null))
-    void window.twinmap.walkTrack({ continent: here.continent, at: { x: here.units.x, y: here.units.y }, indoors: untrack(() => pos?.indoors === true) }).then((floors) => {
+    void window.twinmap.walkTrack({ continent: here.continent, at: { x: here.units.x, y: here.units.y }, indoors: untrack(() => pos?.indoors === true), foot: untrack(() => pos?.taxi !== true && pos?.fly !== true) }).then((floors) => {
       if (asked !== tracked) return
       arrow.setOpacity(floors && floors.over > 0 ? BELOW : 1)
       floorAt = floors?.z ?? null
@@ -1650,7 +1651,7 @@
     const z = journey.legs.at(-1)?.heights?.[1] ?? undefined
     return { continent: on.continent, at: { ...unitsOfPlace(on.rect, goal.x, goal.y), z }, name: journey.name, walked: journey.legs.every((leg) => leg.mode === 'walk') }
   })
-  let walked = $state<{ key: string; continent: Continent; points: Point[] } | null>(null)
+  let walked = $state<{ key: string; continent: Continent; points: Point[]; own: number } | null>(null)
   let asking = false, askedAt = 0
   $effect(() => {
     const goal = journeyGoal
@@ -1667,7 +1668,7 @@
     void window.twinmap.walk({ continent: end.continent, from: { ...from }, to: { ...to }, fromZ, toZ }).then((path) => {
       asking = false
       // No way found (too far, or nothing to walk on there): a straight line.
-      walked = { key, continent: end.continent, points: path?.points ?? [from, to] }
+      walked = { key, continent: end.continent, points: path?.points ?? [from, to], own: path?.own ?? 0 }
     })
   })
   // The walks further on, between the ends of their legs: asked once each, and kept while the legs are the same.
@@ -1684,7 +1685,26 @@
       })
     }
   })
+  // The walk under way, when it keeps to the player's own trails: given to Shortest Path to guide in
+  // the game (walk-news.ts), as points on the way. Not while Shortest Path guides the one given: its
+  // first leg then ends at the first of them, and the walk found here is to that. Sent again only
+  // when what would be sent changes; once nothing, when the walk leaves the trails or the journey ends.
+  const WALK_OWNER = 'Twinmap Walk'
+  let walkSent = ''
+  $effect(() => {
+    const w = walked, j = journey, here = me
+    if (j && !j.loading && j.owner === WALK_OWNER) return
+    const goal = j && !j.loading ? j.goal : null
+    const on = w && goal && here && here.continent === w.continent ? maps.find((m) => m.level === 'continent' && m.continent === w.continent) : undefined
+    const news = on && goal ? walkNews(w!.points, w!.own, here!.units, on, goalKey(goal), Date.now()) : false
+    const key = news ? `${news.goal} ${news.v.map((p) => `${p.n} ${p.w}`).join(' ')}` : ''
+    if (key === walkSent) return
+    walkSent = key
+    void window.twinmap.sendWalk(news)
+  })
   // The colours Shortest Path gives the legs in the game.
+  // The way on foot: grey, as Shortest Path draws it in the game, so it is not taken for the gold of herbs and ore.
+  const WALK_GREY = '#b4b4b4'
   const LEG_COLOURS: Record<string, string> = { flight: '#33ff59', boat: '#00bfff', zeppelin: '#ff591a', tram: '#ff8000', lift: '#ff8000' }
   const journeyLayer = L.layerGroup()
   $effect(() => {
@@ -1698,7 +1718,7 @@
       if (i === 0 && leg.mode === 'walk') return
       if (leg.mode === 'walk') {
         const found = laterWalks[walkKey(leg)]
-        if (leg.points[0]!.continent === continent && leg.points.at(-1)!.continent === continent) dashes((found ?? leg.points.map((p) => p.at)).map(at), '#ffd100', 0.75)
+        if (leg.points[0]!.continent === continent && leg.points.at(-1)!.continent === continent) dashes((found ?? leg.points.map((p) => p.at)).map(at), WALK_GREY, 0.75)
         return
       }
       const colour = LEG_COLOURS[leg.mode]
@@ -1716,7 +1736,7 @@
     if (!goal) return
     if (walked && me && walked.continent === continent && me.continent === continent) {
       const rest = restOf(walked.points, me.units).rest.map(at)
-      for (const [color, weight, dashArray] of [['#000', 7.5, '9 13'], ['#ffd100', 4.5, '9 13']] as const) L.polyline(rest, { color, weight, dashArray, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(journeyLayer)
+      for (const [color, weight, dashArray] of [['#000', 7.5, '9 13'], [WALK_GREY, 4.5, '9 13']] as const) L.polyline(rest, { color, weight, dashArray, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(journeyLayer)
     }
     if (goal.continent !== continent) return
     L.circleMarker(at(goal.at), { radius: 7, color: '#000', weight: 4, fill: false, interactive: false }).addTo(journeyLayer)

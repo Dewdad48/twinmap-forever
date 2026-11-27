@@ -21,6 +21,10 @@ export interface Position {
   speed?: number
   /** True on a mount. */
   mount?: boolean
+  /** True on a flight master's flight. */
+  taxi?: boolean
+  /** True in the air on a flying mount. */
+  fly?: boolean
   /** The dungeon, raid or battleground the character is inside; missing in the open world. */
   inst?: Instance
   /** True in a fight: only the position comes through, the rest waits for its end. */

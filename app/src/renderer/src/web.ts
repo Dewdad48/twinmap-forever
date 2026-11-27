@@ -107,5 +107,6 @@ if (!inApp) {
     sendUnfollow: call('send-unfollow', unsent),
     sendRoute: call('send-route', unsent),
     sendStep: call('send-step', unsent),
+    sendWalk: call('send-walk', unsent),
   }
 }

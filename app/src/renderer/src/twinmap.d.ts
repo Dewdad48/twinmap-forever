@@ -60,6 +60,7 @@ declare global {
       sendUnfollow: () => Promise<{ seq: number } | { error: string }>
       sendRoute: (route: RouteNews | false) => Promise<{ seq: number } | { error: string }>
       sendStep: (step: { t: number; at: number }) => Promise<{ seq: number } | { error: string }>
+      sendWalk: (walk: import('../../shared/send').WalkNews | false) => Promise<{ seq: number } | { error: string }>
     }
   }
 }

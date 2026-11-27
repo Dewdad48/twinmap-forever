@@ -146,3 +146,33 @@ export function takenFrom(asked: unknown): string[] {
 export function followFrom(section: unknown): Pin | null {
   return Array.isArray(section) ? null : pinFrom(section)
 }
+
+/**
+ * The walk Twinmap found on the player's own trails (main/trails.ts), for Shortest Path to guide in
+ * the game: the points it passes on the way to the end of the walk under way, on the continent's
+ * map (m, in percent) and in yards of the world (n north, w west, z high). For the journey of `goal`,
+ * as Shortest Path names it. false: none, Shortest Path walks its own way.
+ */
+export interface WalkNews {
+  t: number
+  m: number
+  goal: string
+  v: { x: number; y: number; z?: number; n: number; w: number }[]
+}
+export const WALK_VIAS = 6
+
+/** A walk as the window asked to send it, checked. */
+export function walkNewsFrom(asked: unknown): WalkNews | false | null {
+  if (asked === false) return false
+  if (typeof asked !== 'object' || !asked) return null
+  const { t: sent, m, goal, v } = asked as Record<string, unknown>
+  if (!whole(sent, 1) || !whole(m, 1) || typeof goal !== 'string' || !Array.isArray(v) || v.length < 1 || v.length > WALK_VIAS) return null
+  const out: WalkNews['v'] = []
+  for (const p of v as Record<string, unknown>[]) {
+    if (typeof p !== 'object' || !p) return null
+    const { x, y, z, n, w } = p
+    if (!percent(x) || !percent(y) || typeof n !== 'number' || typeof w !== 'number' || !Number.isFinite(n) || !Number.isFinite(w)) return null
+    out.push({ x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000, ...(typeof z === 'number' && Number.isFinite(z) && { z: Math.round(z) }), n: Math.round(n), w: Math.round(w) })
+  }
+  return { t: sent, m, goal: plainText(goal, 40), v: out }
+}

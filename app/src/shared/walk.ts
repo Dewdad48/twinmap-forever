@@ -18,7 +18,7 @@ export interface WalkAsk {
 export type WayPoint = Point & { z?: number }
 
 /** The way between them, in map units, and how long it is; null where none was found. */
-export type WalkPath = { points: WayPoint[]; yards: number } | null
+export type WalkPath = { points: WayPoint[]; yards: number; /** How much of it keeps to trails the player walked, 0 to 1. */ own?: number } | null
 
 const number = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const point = (v: unknown): v is Point => typeof v === 'object' && v !== null && number((v as Point).x) && number((v as Point).y)
@@ -51,6 +51,8 @@ export interface TrackAsk {
   at: Point
   /** Under a roof, as the game tells it. */
   indoors?: boolean
+  /** On the character's own feet (or mount), as walking: not on a flight, flying or dead. Missing where it is not known. */
+  foot?: boolean
 }
 
 /** How many other places to stand its cell has over the character and under it, and the height it stands at, in yards; null where the grid has none. */
@@ -59,8 +61,8 @@ export type Floors = { over: number; under: number; z: number } | null
 /** What the window asked, checked. */
 export function trackAskFrom(asked: unknown): TrackAsk | null {
   if (typeof asked !== 'object' || !asked) return null
-  const { continent, at, indoors } = asked as Record<string, unknown>
-  return (continent === 0 || continent === 1) && point(at) ? { continent, at: { x: at.x, y: at.y }, indoors: indoors === true } : null
+  const { continent, at, indoors, foot } = asked as Record<string, unknown>
+  return (continent === 0 || continent === 1) && point(at) ? { continent, at: { x: at.x, y: at.y }, indoors: indoors === true, ...(typeof foot === 'boolean' && { foot }) } : null
 }
 
 const MOST_ENDS = 200

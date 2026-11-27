@@ -159,6 +159,9 @@ local function BuildPos()
   run = Num(run)
   if run and run > 0 then out.speed = Round(run, 0.1) end
   if Try(IsMounted) == true then out.mount = true end
+  -- On a flight, or flying: not a way walked (the app keeps the ways the player walks, Trails).
+  if Try(UnitOnTaxi, "player") == true then out.taxi = true end
+  if Try(IsFlying) == true then out.fly = true end
   -- Inside a dungeon, a raid or a battleground: which one. It travels with the position, so the
   -- app never holds the place of one moment with the instance of another.
   local name, kind, _, _, _, _, _, id = Try(GetInstanceInfo)
