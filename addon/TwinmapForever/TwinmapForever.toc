@@ -37,6 +37,7 @@ Marks.lua
 Arrow.lua
 ShortestPath.lua
 Walk.lua
+QuestFocus.lua
 Zygor.lua
 Target.lua
 Options.lua

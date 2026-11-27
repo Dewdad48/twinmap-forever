@@ -28,6 +28,13 @@ ns.texts = {
     ["arrow.followed"] = "{name} is followed: the arrow points to it.",
     ["arrow.afterRoute"] = "{name} is followed once the route is done.",
     ["arrow.unfollowed"] = "{name} is no longer followed.",
+
+    -- A quest the player picked over the guide's step (QuestFocus.lua). {name}: the quest.
+    ["focus.started"] = "heading to {name}. Zygor waits until it is handed in.",
+    ["focus.done"] = "{name} is done: back to the Zygor guide.",
+    ["focus.cleared"] = "{name} cleared: back to the Zygor guide.",
+    ["focus.backToGuide"] = "back to the Zygor guide.",
+    ["focus.noPlace"] = "Shortest Path has no place for {name} yet: still on the Zygor guide.",
     ["arrow.nextStop"] = "that is the next stop of the route: /twinmap skip moves on.",
     ["arrow.onRoute"] = "the arrow follows the route: /twinmap skip moves on.",
     ["arrow.arrived"] = "you are at {name}.",
