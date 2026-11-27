@@ -83,6 +83,7 @@ if (!inApp) {
     },
     setOnTop: () => Promise.resolve(),
     setZoom: () => Promise.resolve(),
+    setWorkspaces: () => Promise.resolve(), // a phone has the defaults (M20-F13 gives it its own)
     setGpu: () => Promise.resolve(),
     restart: () => Promise.resolve(),
     lang: call('lang', 'enUS'),

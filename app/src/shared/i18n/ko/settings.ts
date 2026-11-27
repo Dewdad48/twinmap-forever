@@ -29,6 +29,27 @@ export default {
     left: '왼쪽',
     right: '오른쪽',
     hint: 'M 키로 언제든지 반대쪽으로 옮길 수 있습니다.',
+    custom: '지도 위치는 직접 만든 배치를 따릅니다. {edit}에서 옮기십시오.',
+  },
+
+  arrow: {
+    title: '화살표',
+    colour: '색상',
+    size: '크기',
+    default: '기본값',
+  },
+
+  icons: {
+    label: '지도 아이콘',
+    game: '게임',
+    hint: '수락 가능한 퀘스트, 완료할 퀘스트, 임무에 쓰입니다. 선택한 아이콘에 없는 것은 Twinmap 아이콘으로 표시됩니다.',
+  },
+
+  objectives: {
+    label: '임무',
+    icons: '아이콘',
+    areas: '영역',
+    hint: '영역은 게임 지도처럼 Questie가 각 임무를 표시하는 곳을 둘러싸 그려집니다.',
   },
 
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
@@ -99,6 +120,7 @@ export default {
     follow: '추적 켜기/끄기',
     north: '캐릭터 방향에 맞춰 지도 회전, 또는 북쪽이 위',
     side: '지도를 패널 반대쪽으로',
+    spaces: '위쪽 섹션, 왼쪽부터 차례로',
     // GS VIDEO_OPTIONS_FULLSCREEN.
     fullScreen: '전체 화면',
     // Korean keyboards print Ctrl (GS CTRL_KEY "CTRL 키").

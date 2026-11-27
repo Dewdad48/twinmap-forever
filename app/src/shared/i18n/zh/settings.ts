@@ -30,6 +30,27 @@ export default {
     left: '左侧',
     right: '右侧',
     hint: '随时按 M 切换到另一侧。',
+    custom: '地图的位置由你的布局决定：用{edit}来移动它。',
+  },
+
+  arrow: {
+    title: '箭头',
+    colour: '颜色',
+    size: '大小',
+    default: '默认',
+  },
+
+  icons: {
+    label: '地图图标',
+    game: '游戏',
+    hint: '用于可接任务、可交任务和任务目标。所选图标中没有的，显示 Twinmap 的图标。',
+  },
+
+  objectives: {
+    label: '任务目标',
+    icons: '图标',
+    areas: '区域',
+    hint: '区域与游戏地图一样，围绕 Questie 标出每个任务目标的位置绘制。',
   },
 
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
@@ -103,6 +124,7 @@ export default {
     follow: '打开/关闭跟随',
     north: '地图随角色转向，或保持北方朝上',
     side: '地图移到面板另一侧',
+    spaces: '顶部的分区，从左到右',
     // GS VIDEO_OPTIONS_FULLSCREEN.
     fullScreen: '全屏幕',
     // Chinese keyboards print Ctrl (GS CTRL_KEY "CTRL键").

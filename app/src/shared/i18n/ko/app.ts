@@ -3,7 +3,14 @@ export default {
   top: {
     sections: '섹션',
     now: '현재',
-    items: '아이템',
+    map: '지도',
+    character: '캐릭터',
+    inventory: '소지품',
+    professions: '전문 기술',
+    spellbook: '마법책',
+    talents: '특성',
+    auctionSearch: '경매장 검색',
+    item: '아이템',
     auctionHouse: '경매장',
     // The game's own short name (GS BUTTON_LAG_AUCTIONHOUSE).
     auctionHouseShort: '경매',
@@ -16,6 +23,29 @@ export default {
     settings: '설정',
   },
 
+  layout: {
+    edit: '배치 편집 ({ctrl}+E)',
+    editKey: '배치 편집',
+    hint: '탭을 패널 가장자리로 끌면 옆에 놓이고, 가운데로 끌면 함께 묶입니다.',
+    addPanel: '패널 추가',
+    pull: '패널로 끌어 꺼내거나, 클릭하여 현재 아래에 놓으십시오',
+    reset: '이 작업 공간 초기화',
+    restore: '기본 작업 공간 복원',
+    restoreSure: '모든 작업 공간을 처음 상태로 되돌리시겠습니까?',
+    restoreYes: '복원',
+    restoreNo: '취소',
+    done: '완료',
+    hintSpaces: '위쪽: 작업 공간을 끌면 순서가 바뀌고, 두 번 클릭하면 이름을 바꿀 수 있습니다.',
+    newSpace: '새 작업 공간',
+    spacesMost: '작업 공간은 최대 {most}개',
+    unnamed: '작업 공간',
+    rename: '작업 공간 이름',
+    deleteSpace: '작업 공간 삭제',
+    deleteSure: '작업 공간 "{name}"을(를) 삭제하시겠습니까? 배치는 사라지고, 패널은 다른 작업 공간에 남습니다.',
+    deleteYes: '삭제',
+    deleteNo: '유지',
+  },
+
   link: {
     paused: '일시 정지됨',
     closed: '게임 실행 안 됨',
@@ -26,7 +56,7 @@ export default {
     updateAddon: '애드온 업데이트',
     // The protocol numbers after a colon, so no particle follows them.
     newerAddon: 'Twinmap Forever 애드온이 이 앱보다 새 버전입니다(프로토콜: 애드온 {addon}, 앱 {app}). Twinmap을 닫았다가 다시 여십시오. 시작할 때 스스로 업데이트됩니다.',
-    newerAddonMac: 'Twinmap Forever 애드온이 이 앱보다 새 버전입니다(프로토콜: 애드온 {addon}, 앱 {app}). macOS용 최신 Twinmap을 내려받으십시오. macOS가 열지 않으면 "시스템 설정 > 개인정보 보호 및 보안"에서 "그래도 열기"를 선택하십시오.',
+    newerAddonMove: 'Twinmap Forever 애드온이 이 앱보다 새 버전입니다(프로토콜: 애드온 {addon}, 앱 {app}). Twinmap을 "응용 프로그램" 폴더로 옮긴 다음 다시 여십시오. 시작할 때 스스로 업데이트됩니다.',
     olderAddon: 'Twinmap Forever 애드온이 이 앱보다 이전 버전입니다(프로토콜: 애드온 {addon}, 앱 {app}). CurseForge에서 애드온을 업데이트한 다음 게임을 다시 시작하십시오.',
     connecting: '연결 중',
     lost: '연결 끊김',
@@ -85,7 +115,8 @@ export default {
     levelPercent: '레벨 {level}, {percent}%',
     xp: '경험치 {xp} / {max}',
     experience: '경험치',
-    width: '패널 너비',
+    emptyExperience: 'Twinmap Forever 애드온을 켜고 플레이하면 레벨이 여기에 표시됩니다.',
+    emptyItem: '가방, 은행, 소지품 또는 경매장 검색에서 아이템을 클릭하면 여기에 가격이 표시됩니다.',
     widthHint: '끌어서 크기를 조절합니다. 두 번 클릭하면 초기화됩니다.',
   },
 
@@ -97,6 +128,8 @@ export default {
     nearby: '주변',
     // As the game (GS MAP_LEGEND_TURNIN, GS OBJECTIVES_LABEL).
     handIn: '완료',
+    lessXpAt: '{level}레벨부터 경험치 감소',
+    lessXp: '경험치 감소',
     objective: '임무',
     quest: '퀘스트',
     entrance: '입구',
@@ -117,6 +150,11 @@ export default {
     finding: '이동 경로 찾는 중',
     // Rewritten so no particle follows Shortest Path.
     updateHint: 'Shortest Path, Twinmap Forever 애드온을 업데이트하면 전체 이동 경로가 여기에 표시됩니다',
+    emptyAttention: '지금은 확인할 것이 없습니다. 죽음이나 조건이 충족된 경매장 알림이 여기에 표시됩니다.',
+    emptyPins: '저장한 핀이 아직 없습니다. 지도에서 장소를 클릭하고 저장하면 여기에 표시됩니다.',
+    emptyQuests: '퀘스트 목록에 퀘스트가 없습니다. 게임에서 퀘스트를 수락하면 여기에 표시됩니다.',
+    emptyNearby: '주변에 아무도 없습니다. 이동하면 주변의 상인, 상급자, 비행 조련사가 여기에 표시됩니다.',
+    allOut: '현재의 모든 블록이 각자의 패널에 있습니다. 패널을 닫으면 그 블록이 여기로 돌아옵니다.',
   },
 
   journey: {
@@ -224,6 +262,10 @@ export default {
     notGame: '이 폴더에는 World of Warcraft: Forever가 없습니다. _forever_ 폴더가 들어 있는 폴더를 선택하십시오.',
     savePicture: '이미지 저장: {name}',
     noNetwork: '이 컴퓨터는 홈 네트워크에 연결되어 있지 않습니다.',
+    moveApp: 'Twinmap을 "응용 프로그램" 폴더로 옮기시겠습니까?',
+    moveAppWhy: 'Twinmap은 그 폴더에서만 스스로 업데이트할 수 있습니다. 옮긴 뒤 "응용 프로그램" 폴더에서 다시 열립니다.',
+    moveAppYes: '옮기기',
+    moveAppNo: '나중에',
     portTaken: '{port}번 포트를 다른 프로그램이 사용 중입니다.',
     scanAgain: '컴퓨터에서 Twinmap 설정을 열고 코드를 다시 스캔하십시오.',
     nothingToSend: '보낼 내용이 없습니다.',

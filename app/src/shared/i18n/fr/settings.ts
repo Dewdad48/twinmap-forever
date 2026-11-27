@@ -29,6 +29,27 @@ export default {
     left: 'À gauche',
     right: 'À droite',
     hint: 'M la fait passer de l’autre côté à tout moment.',
+    custom: 'Votre disposition place la carte : déplacez-la avec {edit}.',
+  },
+
+  arrow: {
+    title: 'Flèche',
+    colour: 'Couleur',
+    size: 'Taille',
+    default: 'Par défaut',
+  },
+
+  icons: {
+    label: 'Icônes de la carte',
+    game: 'Jeu',
+    hint: 'Pour les quêtes disponibles, les quêtes à rendre et les objectifs. Quand les icônes choisies n’en ont pas, celle de Twinmap s’affiche.',
+  },
+
+  objectives: {
+    label: 'Objectifs',
+    icons: 'Icônes',
+    areas: 'Zones',
+    hint: 'Les zones, comme sur la carte du jeu, sont tracées autour des lieux où Questie place chaque objectif.',
   },
 
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
@@ -98,6 +119,7 @@ export default {
     follow: 'Activer ou désactiver Suivre',
     north: 'La carte tourne avec votre personnage, ou le nord en haut',
     side: 'Carte de l’autre côté du panneau',
+    spaces: 'Les sections du haut, de gauche à droite',
     fullScreen: 'Plein écran',
     ctrl: 'Ctrl',
     zoom: 'Taille du texte, aussi Ctrl et la molette hors de la carte',

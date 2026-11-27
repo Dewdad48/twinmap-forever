@@ -30,6 +30,27 @@ export default {
     left: 'Слева',
     right: 'Справа',
     hint: 'M переносит ее на другую сторону в любой момент.',
+    custom: 'Карта стоит там, где ее поставили вы: переместите ее через {edit}.',
+  },
+
+  arrow: {
+    title: 'Стрелка',
+    colour: 'Цвет',
+    size: 'Размер',
+    default: 'По умолчанию',
+  },
+
+  icons: {
+    label: 'Значки на карте',
+    game: 'Игра',
+    hint: 'Для доступных заданий, заданий для сдачи и задач. Если в выбранных значках нужного нет, показывается значок Twinmap.',
+  },
+
+  objectives: {
+    label: 'Задачи',
+    icons: 'Значки',
+    areas: 'Области',
+    hint: 'Области, как на карте игры, рисуются вокруг мест, где Questie показывает каждую задачу.',
   },
 
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
@@ -101,6 +122,7 @@ export default {
     follow: 'Следовать: вкл./выкл.',
     north: 'Карта поворачивается вместе с вашим персонажем или север вверху',
     side: 'Карта на другую сторону панели',
+    spaces: 'Разделы сверху, слева направо',
     fullScreen: 'Полноэкранный режим',
     // Russian keyboards print Ctrl (GS CTRL_KEY "CTRL").
     ctrl: 'Ctrl',

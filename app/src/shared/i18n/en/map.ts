@@ -45,6 +45,8 @@ export default {
       // Quests to hand in.
       turnin: 'Turn in',
       objectives: 'Objectives',
+      // Quests to take that already give less XP (5 levels and more under the character): unticked, they are not on the map.
+      lowlevel: 'Low-level',
       // Flight masters.
       flight: 'Flight',
       inn: 'Inn',
@@ -64,6 +66,8 @@ export default {
       // The doors of the dungeons on the world map.
       dungeons: 'Dungeons',
       routes: 'Flight routes',
+      // The ships and zeppelins between two docks, and their docks.
+      vessels: 'Ships and zeppelins',
       // The skulls of the bosses on the map of a dungeon.
       bosses: 'Bosses in a dungeon',
       // The other members of the character's group.
@@ -120,8 +124,15 @@ export default {
   pins: {
     // In the tooltip of a quest pin, under each quest: the XP it gives the character, before its money. {xp}: a number.
     rewardXp: '{xp} XP',
+    // After a quest's XP in a pin's tooltip, in purple: the level from which the quest gives less XP (the next or the one after). {level}: a number.
+    lessXpFrom: 'less from level {level}',
+    // The same where the quest gives less XP already: the XP before it is already the lesser one.
+    lessXp: 'reduced',
     // On the door of a dungeon, and on the entrance inside its map.
     entrance: 'Entrance',
+    // On a dock, where a ship or a zeppelin goes from there. {place}: the game's name of each place, with commas.
+    shipTo: 'Ship to {place}',
+    zeppelinTo: 'Zeppelin to {place}',
     // On the entrance inside the map of a dungeon of several wings. {name}: the wing.
     entranceOf: 'Entrance: {name}',
     // The name of a boss under its skull, on the map of a dungeon, when it is not there in every run. {name}: the boss.

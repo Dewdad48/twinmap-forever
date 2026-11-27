@@ -13,7 +13,10 @@
   import { inApp } from './web'
   import { realismOn, setRealism } from './realism'
   import { ZOOMS } from '../../shared/window'
-  import { layout, setMapRight } from './layout.svelte'
+  import { frame, layout, setMapRight } from './frame.svelte'
+  import { arrow, setArrow } from './arrow.svelte'
+  import { ARROW, ARROW_SIZES } from './look'
+  import { objectiveLooks, objectives, packs, questieHere, setObjectiveLook, setPack } from './packs.svelte'
   import { langNow, metresOn, metricOffered, num, t, type Key } from '../../shared/i18n'
 
   let { setup, tiles, onback, onfirstrun, onfeedback, onnews }: { setup: SetupStatus; tiles: TilesStatus | null; onback: () => void; onfirstrun: () => void; onfeedback: () => void; onnews: () => void } = $props()
@@ -120,9 +123,30 @@
         {/each}
         <div class="line"><button class="btn" onclick={() => location.reload()}>{t('settings.ground3d.reload')}</button></div>
       </div>
+      <!-- The side of the map holds only where a workspace lays the map and Now side by side as at first (frame.svelte.ts). -->
       <div class="setting">
-        <label class="choice">{t('settings.layout.label')} <select class="field size" value={layout.mapRight ? 'right' : 'left'} onchange={(e) => setMapRight(e.currentTarget.value === 'right')}><option value="left">{t('settings.layout.left')}</option><option value="right">{t('settings.layout.right')}</option></select></label>
-        {#if !touch}<p class="hint">{t('settings.layout.hint')}</p>{/if}
+        <label class="choice">{t('settings.layout.label')} <select class="field size" disabled={!layout.sided} value={layout.mapRight ? 'right' : 'left'} onchange={(e) => setMapRight(e.currentTarget.value === 'right')}><option value="left">{t('settings.layout.left')}</option><option value="right">{t('settings.layout.right')}</option></select></label>
+        {#if !layout.sided}<p class="hint">{t('settings.layout.custom', { edit: t('app.layout.editKey') })}</p>
+        {:else if !touch}<p class="hint">{t('settings.layout.hint')}</p>{/if}
+      </div>
+      <!-- The character's arrow, on the 2D map and on the 3D view: any colour, and a size of the one first drawn. -->
+      <div class="setting">
+        <h3 class="sub">{t('settings.arrow.title')}</h3>
+        <div class="line">
+          <label class="choice">{t('settings.arrow.colour')} <input type="color" class="field colour" value={arrow.colour} oninput={(e) => setArrow({ colour: e.currentTarget.value })} /></label>
+          {#if arrow.colour !== ARROW.colour}<button class="btn" onclick={() => setArrow({ colour: ARROW.colour })}>{t('settings.arrow.default')}</button>{/if}
+        </div>
+        <label class="choice">{t('settings.arrow.size')} <select class="field size" value={arrow.size} onchange={(e) => setArrow({ size: Number(e.currentTarget.value) })}>{#each ARROW_SIZES as z (z)}<option value={z}>{num(z, { style: 'percent' })}</option>{/each}</select></label>
+      </div>
+      <!-- The icons of the quest pins (M21-F4): Twinmap's, the game's, or Questie's where Questie is installed. Twinmap and Questie are names: never translated. -->
+      <div class="setting">
+        <label class="choice">{t('settings.icons.label')} <select class="field size" value={packs.chosen === 'questie' && !questieHere() ? 'twinmap' : packs.chosen} onchange={(e) => setPack(e.currentTarget.value as typeof packs.chosen)}><option value="twinmap">Twinmap</option><option value="game">{t('settings.icons.game')}</option>{#if questieHere()}<option value="questie">Questie</option>{/if}</select></label>
+        <p class="hint">{t('settings.icons.hint')}</p>
+      </div>
+      <!-- The objectives of quests (M21-F5): as icons, or as areas in the style of the game's map. -->
+      <div class="setting">
+        <label class="choice">{t('settings.objectives.label')} <select class="field size" value={objectives.look} onchange={(e) => setObjectiveLook(e.currentTarget.value as typeof objectives.look)}>{#each objectiveLooks as look (look)}<option value={look}>{t(`settings.objectives.${look}`)}</option>{/each}</select></label>
+        <p class="hint">{t('settings.objectives.hint')}</p>
       </div>
     {:else if cat === 'game'}
       <div class="setting">
@@ -184,6 +208,8 @@
         <div><dt><kbd>F</kbd></dt><dd>{t('settings.keys.follow')}</dd></div>
         <div><dt><kbd>N</kbd></dt><dd>{t('settings.keys.north')}</dd></div>
         <div><dt><kbd>M</kbd></dt><dd>{t('settings.keys.side')}</dd></div>
+        <div><dt><kbd>{t('settings.keys.ctrl')}</kbd><kbd>1</kbd>{#if frame.spaces.length > 1}<kbd>{frame.spaces.length}</kbd>{/if}</dt><dd>{t('settings.keys.spaces')}</dd></div>
+        <div><dt><kbd>{t('settings.keys.ctrl')}</kbd><kbd>E</kbd></dt><dd>{t('app.layout.editKey')}</dd></div>
         {#if inApp}<div><dt><kbd>F11</kbd></dt><dd>{t('settings.keys.fullScreen')}</dd></div>{/if}
         {#if inApp}<div><dt><kbd>{t('settings.keys.ctrl')}</kbd><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd></dt><dd>{t('settings.keys.zoom')}</dd></div>{/if}
         <div><dt><kbd>Esc</kbd></dt><dd>{t('settings.keys.close')}</dd></div>
@@ -459,6 +485,18 @@
   .field.size {
     width: auto;
     padding: 0 4px;
+  }
+  .field.colour {
+    width: 44px;
+    padding: 3px;
+    cursor: pointer;
+  }
+  .field.colour::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  .field.colour::-webkit-color-swatch {
+    border: 1px solid #000;
+    border-radius: 2px;
   }
   kbd {
     min-width: 26px;

@@ -10,6 +10,7 @@ export const LAYER_GROUPS = [
       { id: 'available', built: true },
       { id: 'turnin', built: true },
       { id: 'objectives', built: true },
+      { id: 'lowlevel', built: true }, // not a layer of its own: off, the quests to take that already give less XP are left out
     ],
   },
   {
@@ -40,6 +41,7 @@ export const LAYER_GROUPS = [
       { id: 'caves', built: true },
       { id: 'dungeons', built: true },
       { id: 'routes', built: true },
+      { id: 'vessels', built: true },
       { id: 'bosses', built: true },
     ],
   },

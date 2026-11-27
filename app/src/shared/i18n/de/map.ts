@@ -31,6 +31,7 @@ export default {
       available: 'Verfügbar',
       turnin: 'Abgeben',
       objectives: 'Questziele',
+      lowlevel: 'Niedrigstufige',
       flight: 'Flugmeister',
       inn: 'Gastwirt',
       vendors: 'Händler',
@@ -46,6 +47,7 @@ export default {
       caves: 'Höhlen',
       dungeons: 'Dungeons',
       routes: 'Flugrouten',
+      vessels: 'Schiffe und Zeppeline',
       bosses: 'Dungeonbosse',
       companions: 'Gruppe',
     },
@@ -83,7 +85,11 @@ export default {
 
   pins: {
     rewardXp: '{xp} EP',
+    lessXpFrom: 'weniger ab Stufe {level}',
+    lessXp: 'verringert',
     entrance: 'Eingang',
+    shipTo: 'Schiff: {place}',
+    zeppelinTo: 'Zeppelin: {place}',
     entranceOf: 'Eingang: {name}',
     // Rare as the game's map legend says it for creatures (glossary).
     rareBoss: '{name} (selten)',

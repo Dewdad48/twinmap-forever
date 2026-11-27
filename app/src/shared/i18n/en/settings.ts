@@ -43,6 +43,39 @@ export default {
     left: 'On the left',
     right: 'On the right',
     hint: 'M puts it on the other side at any time.',
+    // In place of hint, the dropdown greyed, when no tab at the top has the map and Now side by side and nothing else.
+    // {edit}: the name of Edit layout (app.layout.editKey).
+    custom: 'Your layout places the map: move it with {edit}.',
+  },
+
+  // In Appearance, under the map's side: the character's arrow on the 2D map and on the 3D view (the Arrow of map.layers.names).
+  arrow: {
+    // Its subtitle, short.
+    title: 'Arrow',
+    // Two rows under it: a colour box, and a dropdown of sizes in percent.
+    colour: 'Colour',
+    size: 'Size',
+    // A button beside the colour box, once another colour is chosen: back to the gold. Short.
+    default: 'Default',
+  },
+
+  // In Appearance, under the arrow: a dropdown of the icons of the quest pins on the map. Its other two choices are the
+  // names Twinmap and Questie, never translated.
+  icons: {
+    label: 'Map icons',
+    // The choice of the game's own icons.
+    game: 'Game',
+    // Under the dropdown.
+    hint: "For quests to take, quests to hand in and objectives. Where the chosen icons have none, Twinmap's is shown.",
+  },
+
+  // Under the map icons: a dropdown, the objectives of quests drawn as icons or as areas, as the game's map draws them.
+  objectives: {
+    label: 'Objectives',
+    icons: 'Icons',
+    areas: 'Areas',
+    // Under the dropdown. Questie is a name, never translated.
+    hint: "Areas, as on the game's map, are drawn round the places where Questie puts each objective.",
   },
 
   // In General: the app's window, switches, the text size and the hardware acceleration.
@@ -134,6 +167,8 @@ export default {
     north: 'The map turns with your character, or north up',
     // Beside the key M.
     side: 'Map on the other side of the panel',
+    // Beside the keys Ctrl, 1 and the number of the last tab.
+    spaces: 'The sections at the top, from the left',
     // Beside the key F11.
     fullScreen: 'Full screen',
     // The name of a key: Control, as printed on the keyboards of the language (Strg in German). Short.

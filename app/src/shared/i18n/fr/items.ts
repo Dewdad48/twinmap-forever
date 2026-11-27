@@ -147,11 +147,7 @@ export default {
     noCharacter: 'Aucun personnage pour l’instant. Jouez-en un avec l’addon Twinmap Forever activé et ses sacs s’affichent ici, même quand le jeu est fermé.',
     filter: 'Filtrer par nom ou type',
     filterLabel: 'Filtrer les objets',
-    viewLabel: 'Affichage',
     whereLabel: 'Lieu',
-    // A switch half, short: "Emplacements" is too long, "cases" is what players call bag slots.
-    slots: 'Cases',
-    table: 'Liste',
     all: 'Tous',
     // Each part as "label : amount", like the game's "Argent :" (GS MONEY_COLON).
     worth: 'Vente au marchand : {money}',
@@ -175,13 +171,11 @@ export default {
   },
 
   held: {
-    label: 'Sacs et banque',
     bags: 'Sacs',
     bagsNow: 'en ce moment',
     bagsAsOf: 'vus {ago}',
     bank: 'Banque',
     bankSeen: 'vue {ago}',
-    bankUnseen: 'pas encore vue : ouvrez-la une fois en jeu',
     backpack: 'Sac à dos et sacs',
     reagents: 'Sac de composants',
     keyring: 'Trousseau de clés',
@@ -189,6 +183,51 @@ export default {
     used: '{used} sur {count} utilisés',
     // GS CONTAINER_SLOTS "emplacements".
     empty: { one: 'vide · {count} emplacement', many: 'vide · {count} d’emplacements', other: 'vide · {count} emplacements' },
+  },
+
+  bank: {
+    none: 'Aucune banque vue pour l’instant',
+    open: 'Ouvrez votre banque une fois en jeu : son contenu s’affiche ici, même quand le jeu est fermé.',
+    where: 'Parlez à un banquier dans n’importe quelle capitale.',
+  },
+
+  professions: {
+    primary: 'Métiers',
+    secondary: 'Compétences secondaires',
+    filter: 'Filtrer les recettes',
+    known: 'Connues',
+    unknown: 'Pas encore apprises',
+    unknownNote: 'Le nombre : la compétence à partir de laquelle chacune passe au jaune.',
+    optimal: 'Orange : progression assurée',
+    medium: 'Jaune : probable',
+    easy: 'Vert : rare',
+    trivial: 'Gris : aucune',
+    noMatch: 'Aucune recette ne correspond.',
+    none: 'Aucun métier pour l’instant',
+    learn: 'Apprenez-en un auprès d’un maître de métier, dans n’importe quelle ville : son niveau et ses recettes s’affichent ici.',
+    also: 'Cuisine, Secourisme et Pêche comptent aussi.',
+    unseen: 'Aucune recette vue pour l’instant',
+    open: 'Ouvrez {profession} une fois en jeu : ses recettes s’affichent ici, même quand le jeu est fermé.',
+    again: 'Ouvrez {profession} encore une fois en jeu : ses catégories et les recettes pas encore apprises s’affichent aussi ici.',
+    gathers: '{profession} n’a pas de recettes : seul son niveau s’affiche.',
+  },
+
+  spellbook: {
+    filter: 'Filtrer les sorts',
+    passive: 'Passif',
+    noMatch: 'Aucun sort ne correspond.',
+    none: 'Pas encore de grimoire',
+    login: 'Connectez-vous au jeu avec l’addon de Twinmap à jour : les sorts de votre grimoire s’affichent ici, même quand le jeu est fermé.',
+  },
+
+  talents: {
+    spent: { one: '{count} point dépensé', many: '{count} de points dépensés', other: '{count} points dépensés' },
+    free: 'Talents restants : {count}',
+    rank: 'Rang {rank}/{most}',
+    next: 'Rang suivant :',
+    need: { one: 'Dépensez encore {count} point dans les talents {tree}', many: 'Dépensez encore {count} de points dans les talents {tree}', other: 'Dépensez encore {count} points dans les talents {tree}' },
+    none: 'Aucun talent pour l’instant',
+    learn: 'Les talents arrivent au niveau 10, puis un point à chaque niveau. Dépensez-les dans la fenêtre des talents du jeu : ils s’affichent ici.',
   },
 
   table: {
@@ -280,6 +319,37 @@ export default {
     spellsAsOf: '{name}, niveau {level} · sorts vus {ago}',
     bankSeen: 'Banque vue {ago} · {name}',
     bankUnseen: 'Banque pas encore vue : ouvrez-la une fois en jeu · {name}',
+  },
+
+  // The shopping list (M10-F4): en/items.ts says where each text shows.
+  shopping: {
+    title: 'Liste de courses',
+    empty: 'Rien pour l’instant. Ajoutez une recette avec le + chez un maître de métier, ou un objet avec le + de la recherche.',
+    forWho: 'Pour {name}',
+    making: 'À fabriquer · {count}',
+    makeFirst: 'À fabriquer d’abord · {count}',
+    missing: 'Manquant · {count}',
+    ready: 'Déjà là · {count}',
+    toBuy: 'à acheter : {price}',
+    youKnow: '{profession} · recette connue',
+    needs: '{profession} : {skill} requis, vous avez {have}',
+    notKnown: '{profession} · pas encore apprise',
+    unread: '{profession} · ouvrez sa fenêtre une fois en jeu',
+    takes: '{items} par fabrication',
+    takesFor: '{items} pour {count}',
+    amount: '{count} {item}',
+    toLearn: '{profession} : {skill} pour l’apprendre',
+    make: 'fabriquer {count}',
+    of: '{missing} sur {count}',
+    folded: { one: '{count} manquant', many: '{count} manquants', other: '{count} manquants' },
+    foldedNone: 'Tout est à portée de main',
+    fold: 'Replier la liste de courses',
+    unfold: 'Déplier la liste de courses',
+    fewer: 'Un de moins',
+    more: 'Un de plus',
+    add: 'Ajouter à la liste de courses : {item}',
+    onMap: 'Marchands sur la carte',
+    toRoute: 'Ajouter à l’itinéraire',
   },
 
   picker: {

@@ -30,6 +30,7 @@ export default {
       available: 'Disponibles',
       turnin: 'Rendre la quête',
       objectives: 'Objectifs',
+      lowlevel: 'Bas niveau',
       flight: 'Maître de vol',
       inn: 'Aubergiste',
       vendors: 'Marchands',
@@ -45,6 +46,7 @@ export default {
       caves: 'Grottes',
       dungeons: 'Donjons',
       routes: 'Trajets aériens',
+      vessels: 'Bateaux et zeppelins',
       bosses: 'Boss des donjons',
       companions: 'Groupe',
     },
@@ -83,7 +85,11 @@ export default {
 
   pins: {
     rewardXp: '{xp} EXP',
+    lessXpFrom: 'moins à partir du niveau {level}',
+    lessXp: 'réduite',
     entrance: 'Entrée',
+    shipTo: 'Bateau : {place}',
+    zeppelinTo: 'Zeppelin : {place}',
     entranceOf: 'Entrée : {name}',
     rareBoss: '{name} (rare)',
     graveyard: 'Cimetière',

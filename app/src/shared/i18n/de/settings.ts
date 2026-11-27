@@ -29,6 +29,27 @@ export default {
     left: 'Links',
     right: 'Rechts',
     hint: 'Mit M wechselt sie jederzeit die Seite.',
+    custom: 'Eure Anordnung legt die Karte fest: Verschiebt sie mit {edit}.',
+  },
+
+  arrow: {
+    title: 'Pfeil',
+    colour: 'Farbe',
+    size: 'Größe',
+    default: 'Standard',
+  },
+
+  icons: {
+    label: 'Kartensymbole',
+    game: 'Spiel',
+    hint: 'Für verfügbare Quests, Quests zum Abgeben und Questziele. Wo die gewählten Symbole keines haben, erscheint das von Twinmap.',
+  },
+
+  objectives: {
+    label: 'Questziele',
+    icons: 'Symbole',
+    areas: 'Bereiche',
+    hint: 'Die Bereiche werden wie auf der Spielkarte um die Orte gezeichnet, an denen Questie jedes Questziel zeigt.',
   },
 
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
@@ -104,6 +125,7 @@ export default {
     // "genordet" is the German word for a map with north up.
     north: 'Karte dreht sich mit Eurem Charakter oder ist genordet',
     side: 'Karte auf die andere Seite',
+    spaces: 'Die Bereiche oben, von links nach rechts',
     fullScreen: 'Vollbild',
     // German keyboards say Strg, as the game (GS CTRL_KEY_TEXT).
     ctrl: 'Strg',

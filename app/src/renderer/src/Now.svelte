@@ -2,11 +2,13 @@
   // The Now column: the next stop of the route, My pins, every quest of the log (the nearest first),
   // and who is near. A click on the title of a band folds it away, and again opens it.
   // Nothing to click to make it work: it composes itself from where the character is.
+  // Each block is a section of the frame (M20-F7): in Edit layout its handle takes it out into a panel of its own, where
+  // it says what to do in the game while it has nothing to show; its panel closed, it is back in the column.
   import { TILES } from './web'
   import type { Position } from '../../shared/game'
   import type { GameMap } from '../../shared/maps'
   import { nearbyRows, nearest, questRows, steady, wayOf, whereIs, type NowRow, type PlacelessRow } from '../../shared/now'
-  import type { LogQuest, QuestPin } from '../../shared/quests'
+  import { xpDrop, type LogQuest, type QuestPin } from '../../shared/quests'
   import { bandOf, routeNews, type Route, type Stop } from '../../shared/route'
   import { sendState, type Inbox } from '../../shared/send'
   import type { FixedPin } from '../../shared/services'
@@ -23,6 +25,7 @@
   import type { Alert } from '../../shared/ah'
   import { coins } from '../../shared/items'
   import { distance, t } from '../../shared/i18n'
+  import { add, frame, PART_DRAG, section, titleOf } from './frame.svelte'
 
   // onpick: a row was chosen, the map should go there. onpoint: the pointer or the keyboard is on
   // a row (or on none: null), the map should show which pin it is.
@@ -34,6 +37,7 @@
     log,
     fixed,
     side,
+    xpLevel, // the character's level, for XP: null at the level cap, undefined while it is not known
     ready,
     live,
     inbox,
@@ -61,6 +65,7 @@
     log: LogQuest[]
     fixed: FixedPin[]
     side?: string
+    xpLevel?: number | null
     ready: boolean
     live: boolean
     inbox: Inbox | null
@@ -106,6 +111,12 @@
   // Inside a dungeon the character has no place on a continent: the column is empty there.
   const me = $derived(pos?.inst ? null : whereIs(maps, pos))
   const around = $derived(nearbyRows(maps, quests, fixed, side))
+  // The level each quest's XP is reckoned at, from its pins: a quest row says when its XP drops (xpDrop).
+  const xpLevels = $derived(new Map(quests.flatMap((p) => Object.entries(p.rewards ?? {}).flatMap(([q, r]) => (r.level && r.xp ? [[q, r.level] as const] : [])))))
+  const dropOf = (row: NowRow): 'less' | number | null => {
+    const level = row.key.startsWith('q:') && xpLevel ? xpLevels.get(row.name) : undefined
+    return level === undefined ? null : xpDrop(level, xpLevel!)
+  }
 
   // The rows are ordered by the way on foot, and tell its yards: asked for all of them at once,
   // the quests of this continent and the nearest around as the crow flies.
@@ -177,7 +188,7 @@
   function clicked(e: MouseEvent): void {
     const on = e.target as Element
     if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return
-    if (on.closest('.leaflet-container') || (on.closest('.now') && !on.closest('button'))) chosen = null
+    if (on.closest('.leaflet-container') || ((on.closest('.now') || on.closest('.block')) && !on.closest('button'))) chosen = null
   }
   // Attention: what wants doing first. Its one row for now: dead, the way back to life.
   const attention = $derived<NowRow[]>(back ? [{ key: 'death', name: back.name, kind: back.door ? t('app.now.entrance') : t('app.now.corpse'), tone: 'service', continent: back.continent, at: back.at }] : [])
@@ -201,14 +212,21 @@
   </h2>
 {/snippet}
 
+<!-- In Edit layout, the handle of a block: dragged onto a panel, or clicked to go under the column. -->
+{#snippet handle(part: string)}
+  {#if frame.editing}<button class="block-pull" draggable="true" title={t('app.layout.pull')} aria-label="{t('app.layout.pull')}: {titleOf(part)}" ondragstart={(e) => e.dataTransfer?.setData(PART_DRAG, part)} onclick={() => add(part)}><Glyph name="layout" size={14} /></button>{/if}
+{/snippet}
+
 {#snippet rows(list: NowRow[])}
   <div class="rows places">
     {#each list as row (row.key)}
       <!-- A place on the other continent has no distance to walk: the row still takes the map there. -->
       <!-- The yards are those on foot where a way is known; the arrow points at the place itself. -->
       {@const way = row.continent === me!.continent ? { ...wayOf(me!.at, row.at), ...(walked.yards(row.at) === undefined ? {} : { yards: walked.yards(row.at)! }) } : null}
+      {@const drop = dropOf(row)}
       <button class="row" title={way ? undefined : t('app.now.otherContinent')} aria-current={row.key === chosen} onclick={() => pick(row)} onpointerenter={() => (over = row)} onpointerleave={() => (over = null)} onfocus={() => (over = row)} onblur={() => (over = null)}>
-        <span>{row.name}</span>
+        <!-- A quest whose XP drops soon, or has: said after its name in the purple of the XP bar, never cut by the dots of a long name. -->
+        {#if drop === null}<span>{row.name}</span>{:else}<span class="named"><span>{row.name}</span><span class="drop">{drop === 'less' ? t('app.now.lessXp') : t('app.now.lessXpAt', { level: drop })}</span></span>{/if}
         <span class="t-{row.tone} kind" title={row.kind}>{row.kind}</span>
         <span class="num">{way ? distance(way.yards) : ''}</span>
         {#if way}<Glyph name="direction" size={12} turn={way.turn} />{/if}
@@ -218,6 +236,8 @@
 {/snippet}
 
 <div class="now" data-took={walked.took.toFixed(1)}>
+  <div class="block-home"><div class="block surface" use:section={'attention'}>
+  {@render handle('attention')}
   {#if (attention.length && me) || met.length}
     {@render title('attention', t('app.now.attention'))}
     {#if !folded.attention}<div class="rows attention">
@@ -238,7 +258,13 @@
         </button>
       {/each}
     </div>{/if}
+  {:else}
+    <p class="block-empty"><b>{t('app.now.attention')}</b> {t('app.now.emptyAttention')}</p>
   {/if}
+  </div></div>
+  <div class="block-home"><div class="block surface" use:section={'next'}>
+  {@render handle('next')}
+  {#if !route.stops.length}<p class="block-empty"><b>{t('map.nextStop.title')}</b> {t('map.nextStop.none')}</p>{/if}
   <NextStop {route} band={bandOf(route, me, live, stop && toStop.yards(stop.at), pos)} sending={sendState(live, inbox, news !== null, 'stop')} {inGame} onsend={sendRoute} {onskip} {onarrive} {onclear} {onend} {onremove} {onmove} onpick={onstop} />
   {#if journey}
     <!-- What Shortest Path guides in the game now: its goal and the legs still ahead, as its tracker words them. -->
@@ -272,10 +298,18 @@
       {/each}
     </div>{/if}
   {/if}
+  </div></div>
+  <div class="block-home"><div class="block surface" use:section={'pins'}>
+  {@render handle('pins')}
   {#if myPins.length}
     {@render title('pins', t('app.now.pins'), myPins.length)}
     {#if !folded.pins}{@render rows(myPins)}{/if}
+  {:else}
+    <p class="block-empty"><b>{t('app.now.pins')}</b> {t('app.now.emptyPins')}</p>
   {/if}
+  </div></div>
+  <div class="block-home"><div class="block surface" use:section={'quests'}>
+  {@render handle('quests')}
   {#if lists.here.length + lists.placeless.length}
     {@render title('quests', t('app.now.quests'), lists.here.length + lists.placeless.length)}
     {#if !folded.quests}
@@ -287,11 +321,20 @@
         {/each}
       </div>
     {/if}
+  {:else}
+    <p class="block-empty"><b>{t('app.now.quests')}</b> {t('app.now.emptyQuests')}</p>
   {/if}
+  </div></div>
+  <div class="block-home"><div class="block surface" use:section={'nearby'}>
+  {@render handle('nearby')}
   {#if lists.near.length}
     {@render title('near', t('app.now.nearby'))}
     {#if !folded.near}{@render rows(lists.near)}{/if}
+  {:else}
+    <p class="block-empty"><b>{t('app.now.nearby')}</b> {t('app.now.emptyNearby')}</p>
   {/if}
+  </div></div>
+  <p class="allout">{t('app.now.allOut')}</p>
 </div>
 
 <style>
@@ -299,6 +342,17 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+  }
+  /* Once every block of Now is in a panel of its own, the column says so. The blocks' own rules are in ui.css. */
+  .allout {
+    display: none;
+    margin: 0;
+    padding: 12px 16px;
+    color: var(--text-dim);
+    text-wrap: pretty;
+  }
+  .now:not(:has(:global(.block))) > .allout {
+    display: block;
   }
   /* More room above a title than under it: the band belongs to its own rows. */
   .rows {
@@ -319,6 +373,20 @@
   }
   .places > .row > :first-child {
     grid-column: 2;
+  }
+  .named {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .named > :first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .drop {
+    flex: none;
+    font: var(--t-small);
+    color: var(--xp-top);
   }
   /* The rows with no place follow the others as one list, and are not for clicking. */
   .rows:has(+ .placeless) {

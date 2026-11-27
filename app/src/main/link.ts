@@ -2,7 +2,7 @@
 // keeps the character's state up to date.
 import { createGame, type GameState } from '../shared/game'
 import type { LinkSnapshot } from '../shared/link'
-import { decodeRow, readStrip } from '../shared/strip'
+import { decodeRow, readStrip, stretchAfter } from '../shared/strip'
 import { readFileSync } from 'node:fs'
 import { worldOfYards } from '../shared/inside'
 import type { Box } from '../shared/minimap'
@@ -59,8 +59,10 @@ export function startLink(
   looked: (report: InsideReport | null, seen: Box | null, own: () => boolean, now: number) => void = () => {},
   // Paused, a strip was seen on the game's window: the addon draws again (a /reload, a login) and is to be asked once more.
   drawnWhilePaused: () => void = () => {},
+  // Whether a newer app comes by itself at the next start (update.ts): else the player is told how to get it.
+  automaticUpdates = process.platform === 'win32',
 ): { snapshot: () => LinkSnapshot; inside: () => ReturnType<ReturnType<typeof startInside>['report']>; cut: (x: number, y: number, width: number, height: number) => ReturnType<typeof readRect>; pause: (on: boolean) => void; stop: () => void } {
-  const game = createGame(process.platform === 'win32')
+  const game = createGame(automaticUpdates)
   // Inside a dungeon the game tells addons no place: there, and only there, it is found from the minimap on the screen.
   const inside = startInside(tilesFolder)
   let found: (Inside & { at: number }) | null = null
@@ -145,7 +147,7 @@ export function startLink(
     if (read.drew) drew = read.drew
     if (reading.kind !== 'none') edgeSeenAt = now
     game.feed(reading, now)
-    stretch = drew ? (row.length >> 2) / drew : 1
+    stretch = stretchAfter(stretch, row, read.drew)
     lookInside(hwnd, now)
   }, READ_EVERY)
 

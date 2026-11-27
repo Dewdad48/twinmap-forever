@@ -29,6 +29,27 @@ export default {
     left: 'A la izquierda',
     right: 'A la derecha',
     hint: 'M lo cambia de lado en cualquier momento.',
+    custom: 'Tu disposición coloca el mapa: muévelo con {edit}.',
+  },
+
+  arrow: {
+    title: 'Flecha',
+    colour: 'Color',
+    size: 'Tamaño',
+    default: 'Predeterminado',
+  },
+
+  icons: {
+    label: 'Iconos del mapa',
+    game: 'Juego',
+    hint: 'Para misiones disponibles, misiones por entregar y objetivos. Donde los iconos elegidos no tienen uno, se muestra el de Twinmap.',
+  },
+
+  objectives: {
+    label: 'Objetivos',
+    icons: 'Iconos',
+    areas: 'Áreas',
+    hint: 'Las áreas, como en el mapa del juego, se dibujan alrededor de los lugares donde Questie sitúa cada objetivo.',
   },
 
   // Darrell's fork: switches for the more lifelike 3D ground (realism.ts). English only.
@@ -99,6 +120,7 @@ export default {
     follow: 'Activar o desactivar Seguir',
     north: 'El mapa gira con tu personaje, o el norte arriba',
     side: 'Mapa al otro lado del panel',
+    spaces: 'Las secciones de arriba, de izquierda a derecha',
     fullScreen: 'Pantalla completa',
     ctrl: 'Ctrl',
     zoom: 'Tamaño del texto, también Ctrl y la rueda fuera del mapa',
