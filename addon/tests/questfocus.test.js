@@ -85,3 +85,23 @@ test('a quest Shortest Path finds no place for gives the guide back', () => {
   assert.equal(addon.lua('local ns = ...; return ns.db.focus == nil'), 'true');
   assert.equal(Number(addon.lua('return ARROW.alpha')), 1);
 });
+
+test('a quest already picked when the game starts is taken, to its hand-in when its objectives are done', () => {
+  const addon = loadAddon(DIR);
+  addon.lua(WORLD + ' Q.tracked = 1885; Q.complete[1885] = true');
+  addon.fire('PLAYER_LOGIN');
+  addon.lua('local ns = ...; ns.db.mode = "fast"');
+  addon.fire('PLAYER_ENTERING_WORLD');
+  addon.run(6);
+  assert.equal(clicks(addon), 'TravelToTrackedQuest');
+  assert.equal(Number(addon.lua('return ARROW.alpha')), 0);
+});
+
+test("a quest the guide's step holds is not taken at start", () => {
+  const addon = loadAddon(DIR);
+  addon.lua(WORLD + ' Q.tracked = 889');
+  addon.fire('PLAYER_LOGIN');
+  addon.fire('PLAYER_ENTERING_WORLD');
+  addon.run(6);
+  assert.equal(clicks(addon), '');
+});

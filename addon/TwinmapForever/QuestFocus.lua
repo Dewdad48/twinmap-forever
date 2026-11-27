@@ -81,7 +81,8 @@ local byAddon = false -- the last super-track was set by Zygor, Shortest Path or
 
 -- Who set the super-tracked quest: an addon's call shows in the stack, a click in the tracker does not.
 local ADDONS = { "ZygorGuidesViewer", "ShortestPathForever", "TwinmapForever" }
-local function Caller()
+local addonQuest = nil -- the last quest an addon super-tracked: never taken as the player's
+local function Caller(q)
   local ok, stack = pcall(debugstack, 2)
   byAddon = false
   if ok and type(stack) == "string" then
@@ -89,6 +90,7 @@ local function Caller()
       if stack:find(name, 1, true) then byAddon = true end
     end
   end
+  if byAddon and Num(q) then addonQuest = q end
 end
 if C_SuperTrack and hooksecurefunc then
   for _, name in ipairs({ "SetSuperTrackedQuestID", "ClearAllSuperTracked", "ClearSuperTrackedContent" }) do
@@ -127,6 +129,7 @@ local function Stop(say, clear)
   local focus = ns.db and ns.db.focus
   if not focus then return end
   ns.db.focus = nil
+  if say == "focus.cleared" or say == "focus.noPlace" then ns.db.focusDeclined = focus.quest end
   if clear and ours then
     local b = Button("ShortestPathForeverClearJourneyButton")
     if b then pcall(b.Click, b, "LeftButton") end
@@ -136,9 +139,20 @@ local function Stop(say, clear)
   if say then ns.Say(say, { name = Title(focus.quest) }) end
 end
 
+-- A quest the player picked that is still picked, with nothing focused: one picked before the
+-- game was started again, or before Twinmap had this. Not one an addon picked, one of the guide's
+-- own, nor one the player has just let go of.
+local function Adopt()
+  if GetTime() < quiet or InCombatLockdown() then return end
+  local q = SuperTracked()
+  if not q or q == addonQuest or q == ns.db.focusDeclined or not InLog(q) then return end
+  local zygor, hasZygor = ZygorQuests()
+  if hasZygor and not zygor[q] then Start(q) end
+end
+
 local function Look()
   local focus = ns.db and ns.db.focus
-  if not focus then return end
+  if not focus then return Adopt() end
   local q = focus.quest
   if not InLog(q) then return Stop("focus.done", true) end
   ShowZygorArrow(false)
@@ -198,6 +212,7 @@ frame:SetScript("OnEvent", function(_, event, a)
   byAddon = false
   if GetTime() < quiet or fromAddon then return end
   local q = SuperTracked()
+  ns.db.focusDeclined = nil
   local zygor, hasZygor = ZygorQuests()
   if not q then
     if focus then Stop("focus.cleared", true) end
