@@ -10,6 +10,8 @@ import { BLOCK_YARDS, BLOCKS } from './world'
 const OWN_LEAST = 0.25 // of the walk on trails, for it to be given
 const NEAR = 30 // yards from the character within which a point is passed already
 const APART = 50 // yards between two points given at least
+const SHORT = 200 // yards: a goal this near, as the crow flies, is walked to without stops
+const DETOUR = 1.3 // times the straight way: a walk longer than this keeps to the trails at too great a cost
 
 /** Map units to yards of the world: north, west. */
 export const yardsOfUnits = (p: { x: number; y: number }): [number, number] => [(BLOCKS / 2 - p.y / UNITS_PER_BLOCK) * BLOCK_YARDS, (BLOCKS / 2 - p.x / UNITS_PER_BLOCK) * BLOCK_YARDS]
@@ -20,6 +22,12 @@ export const goalKey = (goal: { m: number; x: number; y: number }): string => `$
 export function walkNews(points: WayPoint[], own: number, me: { x: number; y: number }, continentMap: GameMap, goal: string, t: number): WalkNews | false {
   const rect = continentMap.rect
   if (own < OWN_LEAST || !rect || points.length < 3) return false
+  // A goal close by, or a walk that goes far out of its way to keep to old trails: Shortest Path's own way is better.
+  const yards = points.map(yardsOfUnits)
+  const straight = Math.hypot(yards.at(-1)![0] - yards[0]![0], yards.at(-1)![1] - yards[0]![1])
+  let length = 0
+  for (let i = 1; i < yards.length; i++) length += Math.hypot(yards[i]![0] - yards[i - 1]![0], yards[i]![1] - yards[i - 1]![1])
+  if (straight < SHORT || length > straight * DETOUR) return false
   const [n0, w0] = yardsOfUnits(me)
   const v: WalkNews['v'] = []
   let last: [number, number] = [n0, w0]

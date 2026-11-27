@@ -58,3 +58,11 @@ test('a walk for another goal is not given, nor is Twinmap\'s own route taken', 
   addon.run(3);
   assert.equal(calls(addon), '');
 });
+
+test('a walk far out of its way to keep to trails is not given', () => {
+  const addon = start(' GAME.north, GAME.west, GAME.facing = 0, 0, 0');
+  // 300 yards north as the crow flies, but the trail swings 250 yards west and back.
+  addon.lua(WALK.replace('n = 100, w = 0', 'n = 50, w = 250').replace('n = 200, w = 0', 'n = 200, w = 250'));
+  addon.run(3);
+  assert.equal(calls(addon), '');
+});

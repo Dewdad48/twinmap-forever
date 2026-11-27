@@ -27,3 +27,14 @@ test('a walk mostly off the trails gives nothing: Shortest Path walks its own wa
   const me = at(-9459, 43)
   expect(walkNews([me, at(-9300, -180), at(-8914, -135)], 0.1, me, EK, 'g', 5)).toBe(false)
 })
+
+test('a goal close by gives nothing: no stops on a short walk', () => {
+  const me = at(-9459, 43)
+  expect(walkNews([me, at(-9420, 0), at(-9400, -40), at(-9380, -60)], 0.9, me, EK, 'g', 5)).toBe(false)
+})
+
+test('a walk far out of its way to keep to trails gives nothing', () => {
+  // The goal 300 yards north; the trail swings 250 yards west and back.
+  const me = at(-9459, 43)
+  expect(walkNews([me, at(-9400, -200), at(-9250, -210), at(-9159, 43)], 0.9, me, EK, 'g', 5)).toBe(false)
+})

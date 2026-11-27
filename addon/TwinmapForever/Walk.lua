@@ -12,6 +12,7 @@ local TWINMAP = "Twinmap" -- the route Twinmap itself guides (ShortestPath.lua):
 local LOOK = 1 -- seconds between looks
 local ARRIVE = 20 -- yards from a point for it to be reached
 local PAST = 12 -- yards nearer the point after than the point itself is to it: past it, on the way
+local DETOUR = 1.3 -- times the straight way to the last point: a walk longer than this is not given
 
 local walk      -- the walk the app sent
 local given     -- the walk given to Shortest Path, and the goal it was given with
@@ -59,6 +60,18 @@ local function Ahead(v, north, west)
   return out
 end
 
+-- A walk that goes far out of its way to keep to old trails: Shortest Path's own way is better.
+local function Roundabout(v, north, west)
+  local last = v[#v]
+  local straight = math.sqrt((last.n - north) ^ 2 + (last.w - west) ^ 2)
+  local length, n, w = 0, north, west
+  for _, p in ipairs(v) do
+    length = length + math.sqrt((p.n - n) ^ 2 + (p.w - w) ^ 2)
+    n, w = p.n, p.w
+  end
+  return length > straight * DETOUR
+end
+
 local function Give(api, m, v, goal, title)
   local stops = {}
   for _, p in ipairs(v) do
@@ -94,7 +107,7 @@ local function Look()
   if not (walk and SameGoal(walk.goal, journey.goal)) then return end
   if given and given.t == walk.t then return end
   local left = Ahead(walk.v, north, west)
-  if #left == 0 then return end
+  if #left == 0 or Roundabout(left, north, west) then return end
   local goal = { map = journey.goal.map, x = journey.goal.x, y = journey.goal.y }
   local title = type(journey.goal.title) == "string" and journey.goal.title or nil
   if Give(api, walk.m, left, goal, title) then given = { t = walk.t, m = walk.m, v = left, goal = goal, title = title } end
